@@ -27,7 +27,7 @@ Fetch some RIS data (about 3GB over 20+ files; you can manually download a singl
 
 Extract the bits of BGP information we want (about 1min for `rrc06`, does ~50k routes per second):
 
-    escript ris-decode.escript ris-data/bview.20191101.0000.06.gz > dump.tsv
+    escript mrt-extract.escript ris-data/bview.20191101.0000.06.gz > dump.tsv
 
 **N.B.** you will need to amend the `bview` filename to reflect the date of the data downloaded
 
