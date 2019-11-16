@@ -43,13 +43,9 @@ Run the following from your project directory:
 
 Point your browser at: http://localhost:7474 and in the top query box type (executing each statement one by one) the following Cypher statments (takes about two minutes to work through the lot):
 
-    CREATE INDEX ON :AS(num);
+    CREATE CONSTRAINT ON (a:AS) ASSERT a.num IS UNIQUE;
 
-    CREATE INDEX ON :Prefix(cidr);
-
-    CREATE INDEX ON :Advertisement(version);
-
-    CREATE INDEX ON :Path(version);
+    CREATE CONSTRAINT ON (p:Prefix) ASSERT p.cidr IS UNIQUE;
 
     USING PERIODIC COMMIT 5000
     LOAD CSV WITH HEADERS FROM "file:///dump.tsv" AS row
