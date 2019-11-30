@@ -4,7 +4,7 @@
 
 % when trying to improve the speed of the decoder you can use the
 % following for hints though it is actually stdout that is slow
-% env ERL_COMPILER_OPTIONS='bin_opt_info' ./mrt2bgpdump.escript ris-data/bview.20191101.0000.06.gz | head -n30
+% env ERL_COMPILER_OPTIONS=bin_opt_info ./mrt2bgpdump.escript ris-data/bview.20191101.0000.06.gz | head -n30
 
 -mode(compile).
 
