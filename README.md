@@ -4,6 +4,8 @@ The project also includes an Erlang implementation of the original Python [`mrt2
 
 ## Related Links
 
+ * [BGPlay](https://stat.ripe.net/bgplay)
+     * [Real-time BGP Visualisation with BGPlay](https://labs.ripe.net/Members/massimo_candela/real-time-bgp-visualisation-with-bgplay)
  * [Multi-Threaded Routing Toolkit (MRT) Routing Information Export Format](https://tools.ietf.org/html/rfc6396)
      * MRT data sources:
          * [RIPE - RIS Raw Data](https://www.ripe.net/analyse/internet-measurements/routing-information-service-ris/ris-raw-data)
