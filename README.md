@@ -1,9 +1,14 @@
-Mostly just an Erlang `mrt2bgpdump` implementation (as the Python version is really slow) and some instructions on how to get the data into neo4j to quickly explore it; schema still needs work!
+These instructions cover how to import MRT dump data (from BGP routing daemons) into a graph database ([neo4j](https://neo4j.com/)) to quickly explore it.
+
+The project also includes an Erlang implementation of the original Python [`mrt2bgpdump`](https://github.com/t2mune/mrtparse) implementation as it was found to be extremely slow.
 
 ## Related Links
 
- * [RIPE - RIS Raw Data](https://www.ripe.net/analyse/internet-measurements/routing-information-service-ris/ris-raw-data)
-     * [Multi-Threaded Routing Toolkit (MRT) Routing Information Export Format](https://tools.ietf.org/html/rfc6396)
+ * [Multi-Threaded Routing Toolkit (MRT) Routing Information Export Format](https://tools.ietf.org/html/rfc6396)
+     * MRT data sources:
+         * [RIPE - RIS Raw Data](https://www.ripe.net/analyse/internet-measurements/routing-information-service-ris/ris-raw-data)
+         * [Route Views](http://www.routeviews.org)
+         * [Isolario Project](https://www.isolario.it)
  * [neo4j - Cypher Manual](https://neo4j.com/docs/cypher-manual/current/)
      * [Remove consecutive duplicates from a list](https://markhneedham.com/blog/2019/01/12/neo4j-cypher-remove-consecutive-duplicates/)
 
