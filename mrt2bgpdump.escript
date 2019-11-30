@@ -9,35 +9,37 @@
 -mode(compile).
 
 -record(state, {
-	file		:: file:fd(),
-	id		:: inet:ip4_address(),
-	peers	= []	:: list(peer()) | array:array(peer())
+	file			:: file:fd(),
+	id			:: inet:ip4_address(),
+	peers		= []	:: list(peer()) | array:array(peer())
 }).
 
 -define(TABLE_DUMP_V2, 13).
 
 -define(PEER_INDEX_TABLE, 1).
 -record(peer, {
-	id		:: inet:ip4_address(),
-	ip		:: inet:ip_addres(),
-	as		:: non_neg_integer()
+	id			:: inet:ip4_address(),
+	ip			:: inet:ip_addres(),
+	as			:: non_neg_integer()
 }).
 -type peer() :: #peer{}.
 
 -define(RIB_IPV4_UNICAST, 2).
 -define(RIB_IPV6_UNICAST, 4).
 -record(rib, {
-	peer_index	:: pos_integer(),
-	timestamp	:: erlang:timestamp(),
-	prefix		:: inet:ip_address(),
-	prefix_len	:: non_neg_integer(),
-	origin		:: igp | egp | unknown,
-	as_path		:: list(non_neg_integer())
+	peer_index		:: pos_integer(),
+	timestamp		:: erlang:timestamp(),
+	prefix			:: inet:ip_address(),
+	prefix_len		:: non_neg_integer(),
+	origin			:: igp | egp | incomplete,
+	as_path			:: list(non_neg_integer()),
+	as_set			:: list(non_neg_integer())
 }).
 
 -define(ORIGIN, 1).
 -define(AS_PATH, 2).
 
+-define(AS_SET, 1).
 -define(AS_SEQUENCE, 2).
 
 main([RIS]) ->
@@ -119,7 +121,7 @@ main4(<<>>, RestMM, RestM, State, RIB) ->
 	main3(RestMM, RestM, State, RIB).
 
 main5(AttrType, <<Attr:8>>, RestMMM, RestMM, RestM, State, RIB) when AttrType == ?ORIGIN ->
-	Origin = if Attr == 0 -> igp; Attr == 1 -> egp; true -> unknown end,
+	Origin = if Attr == 0 -> igp; Attr == 1 -> egp; true -> incomplete end,
 	main4(RestMMM, RestMM, RestM, State, RIB#rib{ origin = Origin });
 main5(AttrType, Attr, RestMMM, RestMM, RestM, State, RIB) when AttrType == ?AS_PATH ->
 	main6(Attr, RestMMM, RestMM, RestM, State, RIB);
@@ -131,7 +133,7 @@ main6(<<PSType:8, PSLen0:8, Rest0/binary>>, RestMMM, RestMM, RestM, State, RIB) 
 	<<PSVal:PSLen/binary, Rest/binary>> = Rest0,
 	main7(PSType, PSLen, PSVal, Rest, RestMMM, RestMM, RestM, State, RIB);
 main6(<<>>, RestMMM, RestMM, RestM, State, RIB) ->
-	main4(RestMMM, RestMM, RestM, State, RIB).
+	main8(RestMMM, RestMM, RestM, State, RIB).
 
 main7(PSType, PSLen, PSVal, RestMMMM, RestMMM, RestMM, RestM, State, RIB) when PSType == ?AS_SEQUENCE ->
 	ASPath = lists:map(fun(P) ->
@@ -139,23 +141,41 @@ main7(PSType, PSLen, PSVal, RestMMMM, RestMMM, RestMM, RestM, State, RIB) when P
 		<<X:32>> = X0,
 		X
 	end, lists:seq(0, PSLen - 1, 4)),
-	main8(RestMMMM, RestMMM, RestMM, RestM, State, RIB#rib{ as_path = ASPath });
+	main6(RestMMMM, RestMMM, RestMM, RestM, State, RIB#rib{ as_path = ASPath });
+main7(PSType, PSLen, PSVal, RestMMMM, RestMMM, RestMM, RestM, State, RIB) when PSType == ?AS_SET ->
+	ASSet = lists:usort(lists:map(fun(P) ->
+		X0 = binary:part(PSVal, {P, 4}),
+		<<X:32>> = X0,
+		X
+	end, lists:seq(0, PSLen - 1, 4))),
+	main6(RestMMMM, RestMMM, RestMM, RestM, State, RIB#rib{ as_set = ASSet });
 main7(_PSType, _PSLen, _PSVal, RestMMMM, RestMMM, RestMM, RestM, State, RIB) ->
 	main6(RestMMMM, RestMMM, RestMM, RestM, State, RIB).
 
-% TABLE_DUMP2|11/01/19 00:00:00|B|202.249.2.185|25152|1.0.4.0/22|25152 6939 4826 38803 56203|IGP
-main8(RestMMMM, RestMMM, RestMM, RestM, State, RIB = #rib{ origin = Origin0 }) ->
-	Peer = array:get(RIB#rib.peer_index, State#state.peers),
-	{{Y,M,D},{HH,MM,SS}} = calendar:now_to_universal_time(RIB#rib.timestamp),
+% TABLE_DUMP2|11/01/19 00:00:00|B|202.249.2.169|2497|16.105.113.0/24|2497 6461 15695 33383 {71,4445,7430,21302}|IGP
+main8(RestMMM, RestMM, RestM, State, RIB0 = #rib{ origin = Origin0 }) ->
+	Peer = array:get(RIB0#rib.peer_index, State#state.peers),
+	{{Y,M,D},{HH,MM,SS}} = calendar:now_to_universal_time(RIB0#rib.timestamp),
 	DateTime = io_lib:format("~2..0B/~2..0B/~2..0B ~2..0B:~2..0B:~2..0B", [M,D,Y rem 100,HH,MM,SS]),
 	NextHop = inet:ntoa(Peer#peer.ip),
 	ASNum = integer_to_list(Peer#peer.as),
-	CIDR = [ inet:ntoa(RIB#rib.prefix), "/", integer_to_list(RIB#rib.prefix_len) ],
-	ASPath = lists:join(" ", lists:map(fun integer_to_list/1, RIB#rib.as_path)),
-	Origin = if Origin0 == igp -> "IGP"; Origin0 == egp -> "EGP"; true -> "UNKNOWN" end,
+	CIDR = [ inet:ntoa(RIB0#rib.prefix), "/", integer_to_list(RIB0#rib.prefix_len) ],
+	ASPath0 = lists:join(" ", lists:map(fun integer_to_list/1, RIB0#rib.as_path)),
+	ASPath = if
+		is_list(RIB0#rib.as_set)->
+			ASPath0 ++ " {" ++ lists:join(",", lists:map(fun integer_to_list/1, RIB0#rib.as_set)) ++ "}";
+		true ->
+			ASPath0
+	end,
+	Origin = if Origin0 == igp -> "IGP"; Origin0 == egp -> "EGP"; true -> "INCOMPLETE" end,
 	Row = ["TABLE_DUMP2", DateTime, "B", NextHop, ASNum, CIDR, ASPath, Origin],
 	io:put_chars(lists:join("|", Row) ++ "\n"),
-	main6(RestMMMM, RestMMM, RestMM, RestM, State, RIB).
+	RIB = RIB0#rib{
+		origin	= #rib{}#rib.origin,
+		as_path	= #rib{}#rib.as_path,
+		as_set	= #rib{}#rib.as_set
+	},
+	main4(RestMMM, RestMM, RestM, State, RIB).
 
 num2ip(N, 4) ->
 	list_to_tuple([(N bsr X) rem 256 || X <- lists:seq(32 - 8, -1, -8)]);

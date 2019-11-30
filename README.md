@@ -45,6 +45,7 @@ Now we extract some facts from this (takes about a minute for `rrc06`):
 
     # list of unique AS numbers
     zcat bgpdump.psv.gz \
+        | sed -e 's/ {[0-9,]*}|/|/' \
         | cut -d'|' -f7 \
         | tr ' ' '\n' \
         | sort -u \
@@ -52,12 +53,14 @@ Now we extract some facts from this (takes about a minute for `rrc06`):
 
     # mapping of prefix to AS number
     zcat bgpdump.psv.gz \
+        | sed -e 's/ {[0-9,]*}|/|/' \
         | awk 'BEGIN { FS="|"; OFS="|" } { split($7, P, " "); print $6, P[length(P)] }' \
         | sort -u \
         | gzip -c > prefix2as.psv.gz
 
     # peerings by protocol version between AS numbers
     zcat bgpdump.psv.gz \
+        | sed -e 's/ {[0-9,]*}|/|/' \
         | awk 'BEGIN { FS="|"; OFS="|" } { if (index($6, ":") == 0) { V = 4 } else { V = 6 }; split($7, P, " "); for (I = 1; I < length(P); I++) if ( P[I] != P[I+1] ) print V, P[I], P[I+1] }' \
         | sort -u \
         | gzip -c > path.psv.gz
