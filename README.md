@@ -12,7 +12,6 @@ The project also includes an Erlang implementation of the original Python [`mrt2
          * [Route Views](http://www.routeviews.org)
          * [Isolario Project](https://www.isolario.it)
  * [neo4j - Cypher Manual](https://neo4j.com/docs/cypher-manual/current/)
-     * [Remove consecutive duplicates from a list](https://markhneedham.com/blog/2019/01/12/neo4j-cypher-remove-consecutive-duplicates/)
 
 # Preflight
 
@@ -113,9 +112,9 @@ Point your browser at: http://localhost:7474 and in the top query box type (exec
     USING PERIODIC COMMIT 5000
     LOAD CSV FROM "file:///path.psv.gz" AS row
     FIELDTERMINATOR '|'
-    WITH row
-    WHERE toInteger(row[0]) = 4
-    WITH toInteger(row[1]) AS dnum, toInteger(row[2]) AS snum
+    WITH [x IN row | toInteger(x)] AS row
+    WHERE row[0] = 4
+    WITH row[1] AS dnum, row[2] AS snum
     MATCH (s:AS { num: snum })
     MATCH (d:AS { num: dnum })
     MERGE (d)-[:PATHv4]->(s);
@@ -123,9 +122,9 @@ Point your browser at: http://localhost:7474 and in the top query box type (exec
     USING PERIODIC COMMIT 5000
     LOAD CSV FROM "file:///path.psv.gz" AS row
     FIELDTERMINATOR '|'
-    WITH row
-    WHERE toInteger(row[0]) = 6
-    WITH toInteger(row[1]) AS dnum, toInteger(row[2]) AS snum
+    WITH [x IN row | toInteger(x)] AS row
+    WHERE row[0] = 6
+    WITH row[1] AS dnum, row[2] AS snum
     MATCH (s:AS { num: snum })
     MATCH (d:AS { num: dnum })
     MERGE (d)-[:PATHv6]->(s);
