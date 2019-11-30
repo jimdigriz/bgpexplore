@@ -14,10 +14,14 @@ The project also includes an Erlang implementation of the original Python [`mrt2
 
 # Preflight
 
- * Docker (sorry!)
- * Erlang - used to extract data from the MRT as `mrt2bgpdump` is *really* slow
+ * [Docker](https://docs.docker.com/install/) (sorry!)
+ * [Erlang](https://www.erlang.org/downloads)
+    * Quick install:
+      * **Debian 10:** `apt-get install erlang`
+      * **CentOS 8:** `yum install -y epel-release && yum install erlang`
+    * you can alternatively install the Python [`mrtparse`](https://github.com/t2mune/mrtparse) tools and replace below `mrt2bgpdump.escript` with `mrt2bgpdump`; it is *really* slow though and after ~120k routes the output rate flatlines
 
-If you find you need to explore the MRT dumps you probably will want to install [`mrtparse`](https://github.com/t2mune/mrtparse).
+If you find you need to explore the MRT dumps you may find install [`mrtparse`](https://github.com/t2mune/mrtparse) helpful.
 
 # Usage
 
