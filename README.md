@@ -33,21 +33,42 @@ Fetch some RIS data (about 3GB over 20+ files; you can manually download a singl
 
 Extract the bits of BGP information we want (about 1min for `rrc06`, does ~50k routes per second, on an [i7-8550U](https://ark.intel.com/content/www/us/en/ark/products/122589/intel-core-i7-8550u-processor-8m-cache-up-to-4-00-ghz.html) it takes about 30mins to cook every with `xargs` and `-P6`):
 
-    ./mrt2bgpdump.escript ris-data/bview.20191101.0000.06.gz > bgpdump.psv
+    ./mrt2bgpdump.escript ris-data/bview.20191101.0000.06.gz | gzip -c > bgpdump.psv.gz
 
 **N.B.** you will need to amend the `bview` filename to reflect the date of the data downloaded
 
-Then from this we need to build the path relationships (takes about 30 seconds for `rrc06`):
+Now we extract some facts from this (takes about a minute for `rrc06`):
 
-    cat bgpdump.psv \
+    # list of unique AS numbers
+    zcat bgpdump.psv.gz \
+        | cut -d'|' -f7 \
+        | tr ' ' '\n' \
+        | sort -u \
+        | gzip -c > as.psv.gz
+
+    # mapping of prefix to AS number
+    zcat bgpdump.psv.gz \
+        | awk 'BEGIN { FS="|"; OFS="|" } { split($7, P, " "); print $6, P[length(P)] }' \
+        | sort -u \
+        | gzip -c > prefix2as.psv.gz
+
+    # peerings by protocol version between AS numbers
+    zcat bgpdump.psv.gz \
         | awk 'BEGIN { FS="|"; OFS="|" } { if (index($6, ":") == 0) { V = 4 } else { V = 6 }; split($7, P, " "); for (I = 1; I < length(P); I++) if ( P[I] != P[I+1] ) print V, P[I], P[I+1] }' \
-        | sort -u > path.psv
+        | sort -u \
+        | gzip -c > path.psv.gz
 
 ## Import
 
 Run the following from your project directory:
 
-    docker run --rm --publish=7474:7474 --publish=7687:7687 --volume=$(pwd):/import:ro --env=NEO4J_AUTH=none neo4j
+    docker run -it --rm \
+        --publish=7474:7474 --publish=7687:7687 \
+        --volume=$(pwd):/import:ro \
+        --env=NEO4J_AUTH=none \
+        --env=NEO4J_dbms_memory_pagecache_size=2G \
+        --env=NEO4J_dbms_memory_heap_max__size=16G \
+        neo4j:3.5
 
 Point your browser at: http://localhost:7474 and in the top query box type (executing each statement one by one) the following Cypher statments (takes about two minutes to work through the lot):
 
@@ -56,26 +77,66 @@ Point your browser at: http://localhost:7474 and in the top query box type (exec
     CREATE CONSTRAINT ON (p:Prefix) ASSERT p.cidr IS UNIQUE;
 
     USING PERIODIC COMMIT 5000
-    LOAD CSV WITH HEADERS FROM "file:///dump.tsv" AS row
-    FIELDTERMINATOR '\t'
-    WITH row, CASE WHEN row.cidr CONTAINS ':' THEN 6 ELSE 4 END AS ver, toInteger(split(row.path, ":")[-1]) AS asnum
-    MERGE (a:AS { num: asnum })
-    MERGE (n:Prefix { version: ver, cidr: row.cidr })
-    MERGE (n)-[:Advertisement { version: ver }]->(a);
+    LOAD CSV FROM "file:///as.psv.gz" AS row
+    FIELDTERMINATOR '|'
+    WITH toInteger(row[0]) AS num
+    MERGE (:AS { num: num });
 
     USING PERIODIC COMMIT 5000
-    LOAD CSV FROM "file:///path.tsv" AS row
-    FIELDTERMINATOR '\t'
-    MATCH (s:AS { num: toInteger(row[1]) })
-    MATCH (d:AS { num: toInteger(row[2]) })
-    MERGE (s)-[:Path { version: toInteger(row[0]) }]->(d);
+    LOAD CSV FROM "file:///path.psv.gz" AS row
+    FIELDTERMINATOR '|'
+    WITH row
+    WHERE toInteger(row[0]) = 4
+    WITH toInteger(row[1]) AS dnum, toInteger(row[2]) AS snum
+    MATCH (s:AS { num: snum })
+    MATCH (d:AS { num: dnum })
+    MERGE (d)-[:PATHv4]->(s);
+
+    USING PERIODIC COMMIT 5000
+    LOAD CSV FROM "file:///path.psv.gz" AS row
+    FIELDTERMINATOR '|'
+    WITH row
+    WHERE toInteger(row[0]) = 6
+    WITH toInteger(row[1]) AS dnum, toInteger(row[2]) AS snum
+    MATCH (s:AS { num: snum })
+    MATCH (d:AS { num: dnum })
+    MERGE (d)-[:PATHv6]->(s);
+
+    USING PERIODIC COMMIT 5000
+    LOAD CSV FROM "file:///prefix2as.psv.gz" AS row
+    FIELDTERMINATOR '|'
+    WITH row
+    WHERE NOT row[0] IN ["::/0", "0.0.0.0/0"]
+    WITH CASE WHEN row[0] CONTAINS ':' THEN 6 ELSE 4 END AS ipver, row[0] AS cidr
+    MERGE (p:Prefix { cidr: cidr })
+    SET p.version = ipver;
+
+    USING PERIODIC COMMIT 5000
+    LOAD CSV FROM "file:///prefix2as.psv.gz" AS row
+    FIELDTERMINATOR '|'
+    WITH row
+    WHERE NOT row[0] IN ["::/0", "0.0.0.0/0"]
+    WITH row[0] AS cidr, toInteger(row[1]) AS num
+    MATCH (p:Prefix { cidr: cidr })
+    MATCH (o:AS { num: num })
+    MERGE (p)-[:ADVERTISEMENT]->(o);
 
 ## Explore
 
 Now in the query box try the following statements:
 
-    MATCH p=()-[r:Path { version: 4 }]->() RETURN p LIMIT 25
+    # peerings to 212.69.32.0/19
+    MATCH p=(:AS)-[:PATHv4]-(:AS)-[:ADVERTISEMENT]-(n:Prefix)
+    WHERE n.cidr = "212.69.32.0/19"
+    RETURN p;
 
-    MATCH p=(:AS)-[:Path { version: 4 }]-(:AS)-[:Advertisement]-(n:Prefix) WHERE n.cidr = "1.0.0.0/24" RETURN p LIMIT 100;
+    # paths between 212.69.32.0/19 and AS8916
+    MATCH p=(:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(:AS)-[:PATHv4*..3]-(:AS { num: 8916 })
+    RETURN p;
 
-    MATCH p=(:AS)-[:Path { version: 4 }]-(:AS)-[:Advertisement]-(n:Prefix) WHERE n.cidr = "212.69.32.0/19" RETURN p LIMIT 100;
+    # find shortest path between 212.69.32.0/19 and AS8916
+    MATCH
+      i=(:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(o:AS),
+      (a:AS { num: 8916 }),
+      p=shortestPath((o)-[:PATHv4*..]-(a))
+    RETURN i, p;
