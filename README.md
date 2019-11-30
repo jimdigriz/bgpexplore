@@ -37,13 +37,13 @@ Fetch some RIS data (about 3GB over 20+ files; you can manually download a singl
 
 ## Extract
 
-Extract the bits of BGP information we want (about 1min for `rrc06`, does ~50k routes per second, on an [i7-8550U](https://ark.intel.com/content/www/us/en/ark/products/122589/intel-core-i7-8550u-processor-8m-cache-up-to-4-00-ghz.html) it takes about 30mins to cook all MRT files with `xargs` and `-P6`):
+We convert the MRT files into bgpdump format (about one minute for `rrc06`, does ~50k routes per second, on an [i7-8550U](https://ark.intel.com/content/www/us/en/ark/products/122589/intel-core-i7-8550u-processor-8m-cache-up-to-4-00-ghz.html) it takes about 30minutes to cook all MRT files with `xargs`):
 
     ./mrt2bgpdump.escript ris-data/bview.20191101.0000.06.gz | gzip -c > bgpdump.psv.gz
 
 **N.B.** you will need to amend the `bview` filename to reflect the date of the data downloaded
 
-Now we extract some facts from this (takes about a minute for `rrc06`):
+Now we extract the information we want from this (takes about a minute for `rrc06`):
 
     # list of unique AS numbers
     zcat bgpdump.psv.gz \
@@ -79,7 +79,7 @@ Run the following from your project directory:
         --env=NEO4J_dbms_memory_heap_max__size=16G \
         neo4j:3.5
 
-Point your browser at: http://localhost:7474 and in the top query box type (executing each statement one by one) the following Cypher statments (takes about two minutes to work through the lot):
+Point your browser at: http://localhost:7474 and in the top query box type (executing each statement one by one) the following Cypher statments (takes about two minutes to work through `rrc06`):
 
     CREATE CONSTRAINT ON (a:AS) ASSERT a.num IS UNIQUE;
 
@@ -90,6 +90,25 @@ Point your browser at: http://localhost:7474 and in the top query box type (exec
     FIELDTERMINATOR '|'
     WITH toInteger(row[0]) AS num
     MERGE (:AS { num: num });
+
+    USING PERIODIC COMMIT 5000
+    LOAD CSV FROM "file:///prefix2as.psv.gz" AS row
+    FIELDTERMINATOR '|'
+    WITH row
+    WHERE NOT row[0] IN ["::/0", "0.0.0.0/0"]
+    WITH CASE WHEN row[0] CONTAINS ':' THEN 6 ELSE 4 END AS ipver, row[0] AS cidr
+    MERGE (p:Prefix { cidr: cidr })
+    SET p.version = ipver;
+
+    USING PERIODIC COMMIT 5000
+    LOAD CSV FROM "file:///prefix2as.psv.gz" AS row
+    FIELDTERMINATOR '|'
+    WITH row
+    WHERE NOT row[0] IN ["::/0", "0.0.0.0/0"]
+    WITH row[0] AS cidr, toInteger(row[1]) AS num
+    MATCH (p:Prefix { cidr: cidr })
+    MATCH (o:AS { num: num })
+    MERGE (p)-[:ADVERTISEMENT]->(o);
 
     USING PERIODIC COMMIT 5000
     LOAD CSV FROM "file:///path.psv.gz" AS row
@@ -110,25 +129,6 @@ Point your browser at: http://localhost:7474 and in the top query box type (exec
     MATCH (s:AS { num: snum })
     MATCH (d:AS { num: dnum })
     MERGE (d)-[:PATHv6]->(s);
-
-    USING PERIODIC COMMIT 5000
-    LOAD CSV FROM "file:///prefix2as.psv.gz" AS row
-    FIELDTERMINATOR '|'
-    WITH row
-    WHERE NOT row[0] IN ["::/0", "0.0.0.0/0"]
-    WITH CASE WHEN row[0] CONTAINS ':' THEN 6 ELSE 4 END AS ipver, row[0] AS cidr
-    MERGE (p:Prefix { cidr: cidr })
-    SET p.version = ipver;
-
-    USING PERIODIC COMMIT 5000
-    LOAD CSV FROM "file:///prefix2as.psv.gz" AS row
-    FIELDTERMINATOR '|'
-    WITH row
-    WHERE NOT row[0] IN ["::/0", "0.0.0.0/0"]
-    WITH row[0] AS cidr, toInteger(row[1]) AS num
-    MATCH (p:Prefix { cidr: cidr })
-    MATCH (o:AS { num: num })
-    MERGE (p)-[:ADVERTISEMENT]->(o);
 
 ## Explore
 
