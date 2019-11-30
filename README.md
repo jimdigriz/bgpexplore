@@ -5,6 +5,7 @@ Mostly just an Erlang `mrt2bgpdump` implementation (as the Python version is rea
  * [RIPE - RIS Raw Data](https://www.ripe.net/analyse/internet-measurements/routing-information-service-ris/ris-raw-data)
      * [Multi-Threaded Routing Toolkit (MRT) Routing Information Export Format](https://tools.ietf.org/html/rfc6396)
  * [neo4j - Cypher Manual](https://neo4j.com/docs/cypher-manual/current/)
+     * [Remove consecutive duplicates from a list](https://markhneedham.com/blog/2019/01/12/neo4j-cypher-remove-consecutive-duplicates/)
 
 # Preflight
 
@@ -27,13 +28,13 @@ Fetch some RIS data (about 3GB over 20+ files; you can manually download a singl
 
 Extract the bits of BGP information we want (about 1min for `rrc06`, does ~50k routes per second, on an [i7-8550U](https://ark.intel.com/content/www/us/en/ark/products/122589/intel-core-i7-8550u-processor-8m-cache-up-to-4-00-ghz.html) it takes about 30mins to cook every with `xargs` and `-P6`):
 
-    escript mrt-extract.escript ris-data/bview.20191101.0000.06.gz > dump.tsv
+    ./mrt2bgpdump.escript ris-data/bview.20191101.0000.06.gz > dump.tsv
 
 **N.B.** you will need to amend the `bview` filename to reflect the date of the data downloaded
 
 Then from this we need to build the path relationships (takes about 30 seconds for `rrc06`):
 
-    cat dump.tsv | awk 'BEGIN { OFS="\t" } { if (index($1, ":") == 0) { V = 4 } else { V = 6 }; split($2, P, ":"); for (I = 1; I < length(P) - 1; I++) if (P[I] != P[I+1]) { if (P[I] < P[I+1]) { print V, P[I], P[I+1] } else { print V, P[I+1], P[I] } } }' | sort -u > path.tsv
+    cat dump.tsv | grep -v -e '^0.0.0.0/0' -e '^::/0' | awk 'BEGIN { OFS="\t" } { if (index($1, ":") == 0) { V = 4 } else { V = 6 }; split($2, P, ":"); for (I = 1; I < length(P); I++) if ( P[I] != P[I+1] ) print V, P[I], P[I+1] }' | sort -u > path.tsv
 
 ## Import
 
