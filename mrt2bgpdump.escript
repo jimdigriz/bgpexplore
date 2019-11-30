@@ -47,7 +47,7 @@ main([RIS]) ->
 % https://tools.ietf.org/html/rfc6396#section-2
 main(<<Timestamp0:32/signed, Type:16, SubType:16, Length:32, Message:Length/binary, Rest/binary>>, State) when Type == ?TABLE_DUMP_V2 ->
 	Timestamp = {Timestamp0 div 1000000, Timestamp0 rem 1000000, 0},
-	main2(Message, Rest, State, SubType, Timestamp);
+	main2(Message, Rest, State, #rib{ timestamp = Timestamp }, SubType);
 main(<<_Timestamp:32/signed, _Type:16, _SubType:16, Length:32, _Message:Length/binary, Rest/binary>>, State) ->
 	main(Rest, State);
 main(Rest0, State = #state{ file = F }) ->
@@ -65,24 +65,24 @@ main(Rest0, State = #state{ file = F }) ->
 
 % https://tools.ietf.org/html/rfc6396#section-4.3.2
 % https://tools.ietf.org/html/rfc4760#section-5
-main2(<<_Sequence:32, PrefixLength:8, Rest0/binary>>, RestM, State, SubType, Timestamp) when SubType == ?RIB_IPV4_UNICAST ->
+main2(<<_Sequence:32, PrefixLength:8, Rest0/binary>>, RestM, State, RIB0, SubType) when SubType == ?RIB_IPV4_UNICAST ->
 	PrefixPadLength = if PrefixLength rem 8 > 0 -> 8 - (PrefixLength rem 8); true -> 0 end,
 	<<Prefix0:PrefixLength, _PrefixPad:PrefixPadLength, _EntryCount:16, Rest/binary>> = Rest0,
 	Prefix = num2ip(Prefix0 bsl (32 - PrefixLength), 4),
-	RIB = #rib{ timestamp = Timestamp, prefix = Prefix, prefix_len = PrefixLength },
+	RIB = RIB0#rib{ prefix = Prefix, prefix_len = PrefixLength },
 	main3(Rest, RestM, State, RIB);
-main2(<<_Sequence:32, PrefixLength:8, Rest0/binary>>, RestM, State, SubType, Timestamp) when SubType == ?RIB_IPV6_UNICAST ->
+main2(<<_Sequence:32, PrefixLength:8, Rest0/binary>>, RestM, State, RIB0, SubType) when SubType == ?RIB_IPV6_UNICAST ->
 	PrefixPadLength = if PrefixLength rem 8 > 0 -> 8 - (PrefixLength rem 8); true -> 0 end,
 	<<Prefix0:PrefixLength, _PrefixPad:PrefixPadLength, _EntryCount:16, Rest/binary>> = Rest0,
 	Prefix = num2ip(Prefix0 bsl (128 - PrefixLength), 6),
-	RIB = #rib{ timestamp = Timestamp, prefix = Prefix, prefix_len = PrefixLength },
+	RIB = RIB0#rib{ prefix = Prefix, prefix_len = PrefixLength },
 	main3(Rest, RestM, State, RIB);
 % https://tools.ietf.org/html/rfc6396#section-4.3.1
-main2(<<CollectorBGPID0:32, ViewNameLength:16, _ViewName:ViewNameLength/binary, _PeerCount:16, Rest/binary>>, RestM, State0, SubType, _Timestamp) when SubType == ?PEER_INDEX_TABLE ->
+main2(<<CollectorBGPID0:32, ViewNameLength:16, _ViewName:ViewNameLength/binary, _PeerCount:16, Rest/binary>>, RestM, State0, _RIB, SubType) when SubType == ?PEER_INDEX_TABLE ->
 	CollectorBGPID = num2ip(CollectorBGPID0, 4),
 	State = State0#state{ id = CollectorBGPID },
 	main_peer(Rest, RestM, State);
-main2(_Message, RestM, State, _SubType, _Timestamp) ->
+main2(_Message, RestM, State, _RIB, _SubType) ->
 	main(RestM, State).
 
 main_peer(<<_PeerType:6, ASSize:1, IPFamily:1, PeerBGPID0:32, Rest0/binary>>, RestM, State0) ->
