@@ -2,4 +2,6 @@
 !.gitignore
 
 plugins
+asn.txt.gz
+ris-data
 *.psv.gz

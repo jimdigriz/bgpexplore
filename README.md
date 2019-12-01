@@ -45,11 +45,8 @@ We convert the MRT files into bgpdump format (about one minute for `rrc06`, does
 Now we extract the information we want from this (takes about a minute for `rrc06`):
 
     # list of unique AS numbers
-    zcat bgpdump.psv.gz \
-        | sed -e 's/ {[0-9,]*}|/|/' \
-        | cut -d'|' -f7 \
-        | tr ' ' '\n' \
-        | sort -u \
+    zcat asn.txt.gz \
+        | sed -E -e 's/^23456 .*/23456|-Reserved AS-|AS_TRANS; reserved by RFC6793|ZZ/; s/^([0-9]+) (.+) - (.+), ([A-Z][A-Z])$/\1|\2|\3|\4/; s/^([0-9]+) (.+), ([A-Z][A-Z])$/\1|\2||\3/;' \
         | gzip -c > as.psv.gz
 
     # mapping of prefix to AS number
@@ -96,8 +93,8 @@ Now in the top query box copy and paste the following Cypher statements (takes a
     USING PERIODIC COMMIT
     LOAD CSV FROM "file:///as.psv.gz" AS row
     FIELDTERMINATOR '|'
-    WITH toInteger(row[0]) AS num
-    CREATE (:AS { num: num });
+    CREATE (a:AS { num: toInteger(row[0]) })
+    SET a.netname = row[1], a.organisation = row[2], a.country = row[3];
 
     USING PERIODIC COMMIT
     LOAD CSV FROM "file:///prefix2as.psv.gz" AS row
