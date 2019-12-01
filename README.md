@@ -12,6 +12,8 @@ The project also includes an Erlang implementation of the original Python [`mrt2
          * [Route Views](http://www.routeviews.org)
          * [Isolario Project](https://www.isolario.it)
  * [neo4j - Cypher Manual](https://neo4j.com/docs/cypher-manual/current/)
+     * [Shortest Path](https://neo4j.com/blog/graph-algorithms-neo4j-shortest-path/)
+     * [Closeness Centrality](https://neo4j.com/blog/graph-algorithms-neo4j-closeness-centrality/)
 
 # Preflight
 
