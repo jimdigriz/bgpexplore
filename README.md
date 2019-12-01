@@ -48,7 +48,7 @@ Now we build a property map for AS nodes:
 
     # list of unique AS numbers
     zcat asn.txt.gz \
-        | sed -e 's/^23456 .*/23456|-Reserved AS-|AS_TRANS; reserved by RFC6793|ZZ/; s/\( -Reserved AS-\), ZZ,/\1,/; s/^\([0-9]*\) \(.*\) - \(.*\), \([A-Z][A-Z]\)$/\1|\2|\3|\4/; s/^\([0-9]*\) \(.*\), \([A-Z][A-Z]\)$/\1|\2||\3/;' \
+        | sed -e 's/^\(23456\) \(.*\)$/\1|-Reserved AS-|\2|ZZ/; s/\( -Reserved AS-\), ZZ,/\1,/; s/^\([0-9]*\) \(.*\) - \(.*\), \([A-Z][A-Z]\)$/\1|\2|\3|\4/; s/^\([0-9]*\) \(.*\), \([A-Z][A-Z]\)$/\1|\2|\2|\3/;' \
         | gzip -c > as.psv.gz
 
 Now we extract the information we want from this (takes about a minute for `rrc06`):
