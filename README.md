@@ -11,7 +11,7 @@ The project also includes an Erlang implementation of the original Python [`mrt2
          * [RIPE - RIS Raw Data](https://www.ripe.net/analyse/internet-measurements/routing-information-service-ris/ris-raw-data)
          * [Route Views](http://www.routeviews.org)
          * [Isolario Project](https://www.isolario.it)
- * [neo4j - Cypher Manual](https://neo4j.com/docs/cypher-manual/current/)
+ * [neo4j - Cypher Manual](https://neo4j.com/docs/cypher-manual/3.5/)
      * [Shortest Path](https://neo4j.com/blog/graph-algorithms-neo4j-shortest-path/)
      * [Closeness Centrality](https://neo4j.com/blog/graph-algorithms-neo4j-closeness-centrality/)
 
@@ -56,16 +56,18 @@ Now we extract the information we want from this (takes about a minute for `rrc0
     # mapping of prefix to AS number
     zcat bgpdump.psv.gz \
         | sed -e 's/ {[0-9,]*}|/|/' \
-        | awk 'BEGIN { FS="|"; OFS="|" } { split($7, P, " "); print $6, P[length(P)] }' \
+        | awk 'BEGIN { FS=OFS="|" } { split($7, P, " "); print $6, P[length(P)] }' \
         | grep -v -E '^(0\.0\.0\.0/0|::/0|(10|192\.168|172\.(1[6-9]|2[0-9]|3[0-1]))\.)' \
-        | sort -u \
+        | sort -S 1G -u \
         | gzip -c > prefix2as.psv.gz
 
-    # peerings by protocol ipver between AS numbers
+    # peerings by protocol by origin AS number
     zcat bgpdump.psv.gz \
         | sed -e 's/ {[0-9,]*}|/|/' \
-        | awk 'BEGIN { FS="|"; OFS="|" } { if (index($6, ":") == 0) { V = 4 } else { V = 6 }; split($7, P, " "); for (I = 1; I < length(P); I++) if ( P[I] != P[I+1] ) print V, P[length(P)], P[I], P[I+1] }' \
-        | sort -u \
+        | awk 'BEGIN { FS=OFS="|" } { if (index($6, ":") == 0) { V = 4 } else { V = 6 }; split($7, P, " "); for (I = 1; I < length(P); I++) if ( P[I] != P[I+1] ) print V, P[I], P[I+1], P[length(P)] }' \
+        | sort -S 1G -t'|' -k1,3 \
+        | awk 'BEGIN { FS="|" } function doit() { printf "%s|", K; for (I in A) printf "%d ", I; K=$1"|"$2"|"$3; printf "\n" } { if (K!=$1"|"$2"|"$3) { doit(); delete A }; A[$4]=1 } END { doit() }' \
+        | sed -e 's/ $//' \
         | gzip -c > peer.psv.gz
 
 ## Import
@@ -116,36 +118,29 @@ Now in the top query box copy and paste the following Cypher statements (takes a
     MATCH (o:AS { num: num })
     CREATE (p)-[:ADVERTISEMENT]->(o);
 
-    CREATE INDEX ON :Peer(ipver, origin, snum, dnum);
-
     USING PERIODIC COMMIT
     LOAD CSV FROM "file:///peer.psv.gz" AS row
     FIELDTERMINATOR '|'
-    WITH [x IN row | toInteger(x)] AS row
-    WITH row[0] AS ipver, row[1] AS origin, row[2] AS dnum, row[3] AS snum
+    WITH toInteger(row[0]) AS ipver, toInteger(row[1]) AS dnum, toInteger(row[2]) AS snum, [ x IN split(row[3], " ") | toInteger(x) ] AS origin
     MATCH (s:AS { num: snum })
     MATCH (d:AS { num: dnum })
-    MERGE (d)-[:PEER]->(:Peer { ipver: ipver, origin: origin, snum: snum, dnum: dnum })-[:PEER]->(s);
-
-    DROP INDEX ON :Peer(ipver, origin, snum, dnum);
-
-    MATCH f=(d:AS)-[r1:PEER]->(p:Peer { snum: s.num, dnum: d.num })-[r2:PEER]->(s:AS)
-    CREATE (d)-[r:PEER { origin: p.origin, ipver: p.ipver }]->(s)
-    DETACH DELETE r1, p, r2;
+    CREATE (d)-[p:PEER { ipver: ipver, origin: origin, ipver: ipver }]->(s);
 
 ## Explore
 
 Now in the query box try the following statements:
 
     # peerings to 212.69.32.0/19
-    MATCH p=(:AS)-[r:PEER { origin: a.num, ipver: n.ipver }]->(a:AS)<-[:ADVERTISEMENT]-(n:Prefix { cidr: "212.69.32.0/19" })
+    MATCH p=(:AS)-[r:PEER { ipver: n.ipver }]->(a:AS)<-[:ADVERTISEMENT]-(n:Prefix { cidr: "212.69.32.0/19" })
+    WHERE a.num IN r.origin
     RETURN p;
 
     # peerings between 212.69.32.0/19 and AS2497
-    MATCH p=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(s:AS)<-[:PEER*.. { origin: s.num, ipver: n.ipver }]-(:AS { num: 2497 })
-    RETURN p;
+    MATCH p=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(o:AS)<-[r:PEER* { ipver: n.ipver }]-(:AS { num: 2497 })
+    WHERE all(x IN r WHERE o.num IN x.origin)
+    RETURN p
 
-    # discover BGP Multiple Origin AS (MOAS) conflicts
+    # discover BGP Multiple Origin AS (MOAS) conflicts (~20k of 1m prefixes)
     MATCH (n:Prefix)-[r:ADVERTISEMENT]->(:AS)
     WITH n, count(r) AS rel_cnt
     WHERE rel_cnt > 1
@@ -153,3 +148,26 @@ Now in the query box try the following statements:
     LIMIT 100
     MATCH p=(n)-[:ADVERTISEMENT]->(:AS)
     RETURN p;
+
+    # find the longest path to 212.69.32.0/19
+    MATCH p=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(o:AS)<-[r:PEER*..4 { ipver: n.ipver }]-(a:AS)
+    OPTIONAL MATCH (a)-[rr:PEER { ipver: n.ipver }]->()
+    WHERE NOT o.num IN rr.origin AND all(x IN r WHERE o.num IN x.origin)
+    RETURN p
+    ORDER BY length(p)
+    LIMIT 10;
+
+    # shortest path (no MRT dump from AS8916 so ignore relationship direction)
+    MATCH
+      i=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(o:AS),
+      (a:AS { num: 8916 }),
+      p=shortestPath((o)-[:PEER*]-(a))
+    RETURN i, p;
+
+    # centrality of AS nodes
+    CALL algo.closeness.stream("AS", "PEER")
+    YIELD nodeId, centrality
+    MATCH (o:AS) WHERE id(o) = nodeId
+    RETURN o.num AS asnum, centrality
+    ORDER BY centrality DESC
+    LIMIT 100;
