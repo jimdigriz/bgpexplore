@@ -56,29 +56,32 @@ Now we extract the information we want from this (takes about a minute for `rrc0
     zcat bgpdump.psv.gz \
         | sed -e 's/ {[0-9,]*}|/|/' \
         | awk 'BEGIN { FS="|"; OFS="|" } { split($7, P, " "); print $6, P[length(P)] }' \
+        | grep -v -E '^(0\.0\.0\.0/0|::/0|(10|192\.168|172\.(1[6-9]|2[0-9]|3[0-1]))\.)' \
         | sort -u \
         | gzip -c > prefix2as.psv.gz
 
     # peerings by protocol version between AS numbers
     zcat bgpdump.psv.gz \
         | sed -e 's/ {[0-9,]*}|/|/' \
-        | awk 'BEGIN { FS="|"; OFS="|" } { if (index($6, ":") == 0) { V = 4 } else { V = 6 }; split($7, P, " "); for (I = 1; I < length(P); I++) if ( P[I] != P[I+1] ) print V, P[I], P[I+1] }' \
+        | awk 'BEGIN { FS="|"; OFS="|" } { if (index($6, ":") == 0) { V = 4 } else { V = 6 }; split($7, P, " "); for (I = 1; I < length(P); I++) if ( P[I] != P[I+1] ) print V, P[length(P)], P[I], P[I+1] }' \
         | sort -u \
-        | gzip -c > path.psv.gz
+        | gzip -c > peer.psv.gz
 
 ## Import
 
 Run the following from your project directory:
 
     docker run -it --rm \
-        --publish=7474:7474 --publish=7687:7687 \
+        --publish=127.0.0.1:7474:7474 --publish=127.0.0.1:7687:7687 \
         --volume=$(pwd):/import:ro \
         --env=NEO4J_AUTH=none \
         --env=NEO4J_dbms_memory_pagecache_size=2G \
         --env=NEO4J_dbms_memory_heap_max__size=16G \
         neo4j:3.5
 
-Point your browser at: http://localhost:7474 and in the top query box type (executing each statement one by one) the following Cypher statments (takes about two minutes to work through `rrc06`):
+Point your browser at http://localhost:7474 and log in using 'No authentication', [select the cog at the bottom left to open 'Browser Settings' and uncheck 'Connect result nodes'](https://stackoverflow.com/questions/50065869/neo4j-show-only-specific-relations-in-the-browser-graph-view).
+
+Now in the top query box copy and paste the following Cypher statements (takes about two minutes to work through `rrc06`):
 
     CREATE CONSTRAINT ON (a:AS) ASSERT a.num IS UNIQUE;
 
@@ -88,63 +91,48 @@ Point your browser at: http://localhost:7474 and in the top query box type (exec
     LOAD CSV FROM "file:///as.psv.gz" AS row
     FIELDTERMINATOR '|'
     WITH toInteger(row[0]) AS num
-    MERGE (:AS { num: num });
+    CREATE (:AS { num: num });
 
     USING PERIODIC COMMIT 5000
     LOAD CSV FROM "file:///prefix2as.psv.gz" AS row
     FIELDTERMINATOR '|'
-    WITH row
-    WHERE NOT row[0] IN ["::/0", "0.0.0.0/0"]
-    WITH CASE WHEN row[0] CONTAINS ':' THEN 6 ELSE 4 END AS ipver, row[0] AS cidr
+    WITH CASE WHEN row[0] CONTAINS ':' THEN 6 ELSE 4 END AS version, row[0] AS cidr
     MERGE (p:Prefix { cidr: cidr })
-    SET p.version = ipver;
+    ON CREATE SET p.version = version;
 
     USING PERIODIC COMMIT 5000
     LOAD CSV FROM "file:///prefix2as.psv.gz" AS row
     FIELDTERMINATOR '|'
-    WITH row
-    WHERE NOT row[0] IN ["::/0", "0.0.0.0/0"]
     WITH row[0] AS cidr, toInteger(row[1]) AS num
     MATCH (p:Prefix { cidr: cidr })
     MATCH (o:AS { num: num })
-    MERGE (p)-[:ADVERTISEMENT]->(o);
+    CREATE (p)-[:ADVERTISEMENT]->(o);
+
+    CREATE INDEX ON :Peer(version, origin, snum, dnum);
 
     USING PERIODIC COMMIT 5000
-    LOAD CSV FROM "file:///path.psv.gz" AS row
+    LOAD CSV FROM "file:///peer.psv.gz" AS row
     FIELDTERMINATOR '|'
     WITH [x IN row | toInteger(x)] AS row
-    WHERE row[0] = 4
-    WITH row[1] AS dnum, row[2] AS snum
+    WITH row[0] AS version, row[1] AS origin, row[2] AS dnum, row[3] AS snum
     MATCH (s:AS { num: snum })
     MATCH (d:AS { num: dnum })
-    MERGE (d)-[:PATHv4]->(s);
+    MERGE (d)-[:PEER]->(:Peer { version: version, origin: origin, snum: snum, dnum: dnum })-[:PEER]->(s);
 
-    USING PERIODIC COMMIT 5000
-    LOAD CSV FROM "file:///path.psv.gz" AS row
-    FIELDTERMINATOR '|'
-    WITH [x IN row | toInteger(x)] AS row
-    WHERE row[0] = 6
-    WITH row[1] AS dnum, row[2] AS snum
-    MATCH (s:AS { num: snum })
-    MATCH (d:AS { num: dnum })
-    MERGE (d)-[:PATHv6]->(s);
+    DROP INDEX ON :Peer(version, origin, snum, dnum);
+
+    MATCH f=(d:AS)-[r1:PEER]->(p:Peer { snum: s.num, dnum: d.num })-[r2:PEER]->(s:AS)
+    CREATE (d)-[r:PEER { origin: p.origin, version: p.version }]->(s)
+    DETACH DELETE r1, p, r2;
 
 ## Explore
 
 Now in the query box try the following statements:
 
     # peerings to 212.69.32.0/19
-    MATCH p=(:AS)-[:PATHv4]-(:AS)-[:ADVERTISEMENT]-(n:Prefix)
-    WHERE n.cidr = "212.69.32.0/19"
+    MATCH p=(:AS)-[r:PEER { origin: a.num, version: n.version }]->(a:AS)<-[:ADVERTISEMENT]-(n:Prefix { cidr: "212.69.32.0/19" })
     RETURN p;
 
-    # paths between 212.69.32.0/19 and AS8916
-    MATCH p=(:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(:AS)-[:PATHv4*..3]-(:AS { num: 8916 })
+    # peerings between 212.69.32.0/19 and AS2497
+    MATCH p=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(s:AS)<-[:PEER*.. { origin: s.num, version: n.version }]-(:AS { num: 2497 })
     RETURN p;
-
-    # find shortest path between 212.69.32.0/19 and AS8916
-    MATCH
-      i=(:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(o:AS),
-      (a:AS { num: 8916 }),
-      p=shortestPath((o)-[:PATHv4*..]-(a))
-    RETURN i, p;
