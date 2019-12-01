@@ -71,12 +71,18 @@ Now we extract the information we want from this (takes about a minute for `rrc0
 
 Run the following from your project directory:
 
+    mkdir -p plugins
+    wget -P plugins https://github.com/neo4j-contrib/neo4j-apoc-procedures/releases/download/3.5.0.6/apoc-3.5.0.6-all.jar
+    wget -P plugins https://github.com/neo4j-contrib/neo4j-graph-algorithms/releases/download/3.5.4.0/graph-algorithms-algo-3.5.4.0.jar
+
     docker run -it --rm \
         --publish=127.0.0.1:7474:7474 --publish=127.0.0.1:7687:7687 \
         --volume=$(pwd):/import:ro \
+        --volume=$(pwd)/plugins:/plugins:ro \
         --env=NEO4J_AUTH=none \
         --env=NEO4J_dbms_memory_pagecache_size=2G \
         --env=NEO4J_dbms_memory_heap_max__size=16G \
+        --env=NEO4J_dbms_security_procedures_unrestricted='apoc.*,algo.*' \
         neo4j:3.5
 
 Point your browser at http://localhost:7474 and log in using 'No authentication', [select the cog at the bottom left to open 'Browser Settings' and uncheck 'Connect result nodes'](https://stackoverflow.com/questions/50065869/neo4j-show-only-specific-relations-in-the-browser-graph-view).
