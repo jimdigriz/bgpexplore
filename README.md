@@ -44,12 +44,14 @@ We convert the MRT files into bgpdump format (about one minute for `rrc06`, does
 
 **N.B.** you will need to amend the `bview` filename to reflect the date of the data downloaded
 
-Now we extract the information we want from this (takes about a minute for `rrc06`):
+Now we build a property map for AS nodes:
 
     # list of unique AS numbers
     zcat asn.txt.gz \
-        | sed -E -e 's/^23456 .*/23456|-Reserved AS-|AS_TRANS; reserved by RFC6793|ZZ/; s/^([0-9]+) (.+) - (.+), ([A-Z][A-Z])$/\1|\2|\3|\4/; s/^([0-9]+) (.+), ([A-Z][A-Z])$/\1|\2||\3/;' \
+        | sed -e 's/^23456 .*/23456|-Reserved AS-|AS_TRANS; reserved by RFC6793|ZZ/; s/\( -Reserved AS-\), ZZ,/\1,/; s/^\([0-9]*\) \(.*\) - \(.*\), \([A-Z][A-Z]\)$/\1|\2|\3|\4/; s/^\([0-9]*\) \(.*\), \([A-Z][A-Z]\)$/\1|\2||\3/;' \
         | gzip -c > as.psv.gz
+
+Now we extract the information we want from this (takes about a minute for `rrc06`):
 
     # mapping of prefix to AS number
     zcat bgpdump.psv.gz \
