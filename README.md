@@ -147,6 +147,7 @@ Now in the query box try the following statements:
     MATCH (n:Prefix)-[r:ADVERTISEMENT]->(:AS)
     WITH n, count(r) AS rel_cnt
     WHERE rel_cnt > 1
+    WITH n
+    LIMIT 100
     MATCH p=(n)-[:ADVERTISEMENT]->(:AS)
-    RETURN p
-    LIMIT 100;
+    RETURN p;
