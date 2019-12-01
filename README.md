@@ -144,7 +144,9 @@ Now in the query box try the following statements:
     RETURN p;
 
     # discover BGP Multiple Origin AS (MOAS) conflicts
-    MATCH (p:Prefix)-[r:ADVERTISEMENT]->(:AS)
-    WITH p, count(r) AS rel_cnt
+    MATCH (n:Prefix)-[r:ADVERTISEMENT]->(:AS)
+    WITH n, count(r) AS rel_cnt
     WHERE rel_cnt > 1
-    RETURN p;
+    MATCH p=(n)-[:ADVERTISEMENT]->(:AS)
+    RETURN p
+    LIMIT 100;
