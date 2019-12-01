@@ -142,3 +142,9 @@ Now in the query box try the following statements:
     # peerings between 212.69.32.0/19 and AS2497
     MATCH p=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(s:AS)<-[:PEER*.. { origin: s.num, version: n.version }]-(:AS { num: 2497 })
     RETURN p;
+
+    # discover BGP Multiple Origin AS (MOAS) conflicts
+    MATCH (p:Prefix)-[r:ADVERTISEMENT]->(:AS)
+    WITH p, count(r) AS rel_cnt
+    WHERE rel_cnt > 1
+    RETURN p;
