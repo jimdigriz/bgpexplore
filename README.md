@@ -93,20 +93,20 @@ Now in the top query box copy and paste the following Cypher statements (takes a
 
     CREATE CONSTRAINT ON (p:Prefix) ASSERT p.cidr IS UNIQUE;
 
-    USING PERIODIC COMMIT 5000
+    USING PERIODIC COMMIT
     LOAD CSV FROM "file:///as.psv.gz" AS row
     FIELDTERMINATOR '|'
     WITH toInteger(row[0]) AS num
     CREATE (:AS { num: num });
 
-    USING PERIODIC COMMIT 5000
+    USING PERIODIC COMMIT
     LOAD CSV FROM "file:///prefix2as.psv.gz" AS row
     FIELDTERMINATOR '|'
     WITH CASE WHEN row[0] CONTAINS ':' THEN 6 ELSE 4 END AS version, row[0] AS cidr
     MERGE (p:Prefix { cidr: cidr })
     ON CREATE SET p.version = version;
 
-    USING PERIODIC COMMIT 5000
+    USING PERIODIC COMMIT
     LOAD CSV FROM "file:///prefix2as.psv.gz" AS row
     FIELDTERMINATOR '|'
     WITH row[0] AS cidr, toInteger(row[1]) AS num
@@ -116,7 +116,7 @@ Now in the top query box copy and paste the following Cypher statements (takes a
 
     CREATE INDEX ON :Peer(version, origin, snum, dnum);
 
-    USING PERIODIC COMMIT 5000
+    USING PERIODIC COMMIT
     LOAD CSV FROM "file:///peer.psv.gz" AS row
     FIELDTERMINATOR '|'
     WITH [x IN row | toInteger(x)] AS row
