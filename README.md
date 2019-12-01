@@ -96,7 +96,7 @@ Now in the top query box copy and paste the following Cypher statements (takes a
     CREATE (a:AS { num: toInteger(row[0]) })
     SET a.netname = row[1], a.org = row[2], a.tld = row[3];
 
-    # cannot used CREATE as prefix2as is not a 1:1 mapping
+    // cannot used CREATE as prefix2as is not a 1:1 mapping
     USING PERIODIC COMMIT
     LOAD CSV FROM "file:///prefix2as.psv.gz" AS row
     FIELDTERMINATOR '|'
