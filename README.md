@@ -57,7 +57,7 @@ Now we extract the information we want from this (takes about a minute for `rrc0
         | sort -u \
         | gzip -c > prefix2as.psv.gz
 
-    # peerings by protocol version between AS numbers
+    # peerings by protocol ipver between AS numbers
     zcat bgpdump.psv.gz \
         | sed -e 's/ {[0-9,]*}|/|/' \
         | awk 'BEGIN { FS="|"; OFS="|" } { if (index($6, ":") == 0) { V = 4 } else { V = 6 }; split($7, P, " "); for (I = 1; I < length(P); I++) if ( P[I] != P[I+1] ) print V, P[length(P)], P[I], P[I+1] }' \
@@ -94,14 +94,14 @@ Now in the top query box copy and paste the following Cypher statements (takes a
     LOAD CSV FROM "file:///as.psv.gz" AS row
     FIELDTERMINATOR '|'
     CREATE (a:AS { num: toInteger(row[0]) })
-    SET a.netname = row[1], a.organisation = row[2], a.country = row[3];
+    SET a.netname = row[1], a.org = row[2], a.tld = row[3];
 
     USING PERIODIC COMMIT
     LOAD CSV FROM "file:///prefix2as.psv.gz" AS row
     FIELDTERMINATOR '|'
-    WITH CASE WHEN row[0] CONTAINS ':' THEN 6 ELSE 4 END AS version, row[0] AS cidr
+    WITH CASE WHEN row[0] CONTAINS ':' THEN 6 ELSE 4 END AS ipver, row[0] AS cidr
     MERGE (p:Prefix { cidr: cidr })
-    ON CREATE SET p.version = version;
+    ON CREATE SET p.ipver = ipver;
 
     USING PERIODIC COMMIT
     LOAD CSV FROM "file:///prefix2as.psv.gz" AS row
@@ -111,21 +111,21 @@ Now in the top query box copy and paste the following Cypher statements (takes a
     MATCH (o:AS { num: num })
     CREATE (p)-[:ADVERTISEMENT]->(o);
 
-    CREATE INDEX ON :Peer(version, origin, snum, dnum);
+    CREATE INDEX ON :Peer(ipver, origin, snum, dnum);
 
     USING PERIODIC COMMIT
     LOAD CSV FROM "file:///peer.psv.gz" AS row
     FIELDTERMINATOR '|'
     WITH [x IN row | toInteger(x)] AS row
-    WITH row[0] AS version, row[1] AS origin, row[2] AS dnum, row[3] AS snum
+    WITH row[0] AS ipver, row[1] AS origin, row[2] AS dnum, row[3] AS snum
     MATCH (s:AS { num: snum })
     MATCH (d:AS { num: dnum })
-    MERGE (d)-[:PEER]->(:Peer { version: version, origin: origin, snum: snum, dnum: dnum })-[:PEER]->(s);
+    MERGE (d)-[:PEER]->(:Peer { ipver: ipver, origin: origin, snum: snum, dnum: dnum })-[:PEER]->(s);
 
-    DROP INDEX ON :Peer(version, origin, snum, dnum);
+    DROP INDEX ON :Peer(ipver, origin, snum, dnum);
 
     MATCH f=(d:AS)-[r1:PEER]->(p:Peer { snum: s.num, dnum: d.num })-[r2:PEER]->(s:AS)
-    CREATE (d)-[r:PEER { origin: p.origin, version: p.version }]->(s)
+    CREATE (d)-[r:PEER { origin: p.origin, ipver: p.ipver }]->(s)
     DETACH DELETE r1, p, r2;
 
 ## Explore
@@ -133,11 +133,11 @@ Now in the top query box copy and paste the following Cypher statements (takes a
 Now in the query box try the following statements:
 
     # peerings to 212.69.32.0/19
-    MATCH p=(:AS)-[r:PEER { origin: a.num, version: n.version }]->(a:AS)<-[:ADVERTISEMENT]-(n:Prefix { cidr: "212.69.32.0/19" })
+    MATCH p=(:AS)-[r:PEER { origin: a.num, ipver: n.ipver }]->(a:AS)<-[:ADVERTISEMENT]-(n:Prefix { cidr: "212.69.32.0/19" })
     RETURN p;
 
     # peerings between 212.69.32.0/19 and AS2497
-    MATCH p=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(s:AS)<-[:PEER*.. { origin: s.num, version: n.version }]-(:AS { num: 2497 })
+    MATCH p=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(s:AS)<-[:PEER*.. { origin: s.num, ipver: n.ipver }]-(:AS { num: 2497 })
     RETURN p;
 
     # discover BGP Multiple Origin AS (MOAS) conflicts
