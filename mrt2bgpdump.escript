@@ -87,23 +87,6 @@ main2(<<CollectorBGPID0:32, ViewNameLength:16, _ViewName:ViewNameLength/binary, 
 main2(_Message, RestM, State, _RIB, _SubType) ->
 	main(RestM, State).
 
-main_peer(<<_PeerType:6, ASSize:1, IPFamily:1, PeerBGPID0:32, Rest0/binary>>, RestM, State0) ->
-	PeerBGPID = num2ip(PeerBGPID0, 4),
-	ASLen = if ASSize == 0 -> 16; true -> 32 end,
-	IPLen = if IPFamily == 0 -> 32; true -> 128 end,
-	<<PeerIPAddress0:IPLen, PeerAS:ASLen, Rest/binary>> = Rest0,
-	PeerIPAddress = num2ip(PeerIPAddress0, if IPFamily == 0 -> 4; true -> 6 end),
-	Peer = #peer{
-		id	= PeerBGPID,
-		as	= PeerAS,
-		ip	= PeerIPAddress
-	},
-	State = State0#state{ peers = [Peer|State0#state.peers] },
-	main_peer(Rest, RestM, State);
-main_peer(<<>>, RestM, State) ->
-	Peers = array:fix(array:from_list(lists:reverse(State#state.peers))),
-	main(RestM, State#state{ peers = Peers }).
-
 % https://tools.ietf.org/html/rfc6396#section-4.3.4
 main3(<<PeerIndex:16, _OriginatedTime:32/signed, AttributeLength:16, BGPAttributes:AttributeLength/binary, Rest/binary>>, RestM, State, RIB0) ->
 	RIB = RIB0#rib{ peer_index = PeerIndex },
@@ -176,6 +159,23 @@ main8(RestMMM, RestMM, RestM, State, RIB0 = #rib{ origin = Origin0 }) ->
 		as_set	= #rib{}#rib.as_set
 	},
 	main4(RestMMM, RestMM, RestM, State, RIB).
+
+main_peer(<<_PeerType:6, ASSize:1, IPFamily:1, PeerBGPID0:32, Rest0/binary>>, RestM, State0) ->
+	PeerBGPID = num2ip(PeerBGPID0, 4),
+	ASLen = if ASSize == 0 -> 16; true -> 32 end,
+	IPLen = if IPFamily == 0 -> 32; true -> 128 end,
+	<<PeerIPAddress0:IPLen, PeerAS:ASLen, Rest/binary>> = Rest0,
+	PeerIPAddress = num2ip(PeerIPAddress0, if IPFamily == 0 -> 4; true -> 6 end),
+	Peer = #peer{
+		id	= PeerBGPID,
+		as	= PeerAS,
+		ip	= PeerIPAddress
+	},
+	State = State0#state{ peers = [Peer|State0#state.peers] },
+	main_peer(Rest, RestM, State);
+main_peer(<<>>, RestM, State) ->
+	Peers = array:fix(array:from_list(lists:reverse(State#state.peers))),
+	main(RestM, State#state{ peers = Peers }).
 
 num2ip(N, 4) ->
 	list_to_tuple([(N bsr X) rem 256 || X <- lists:seq(32 - 8, -1, -8)]);
