@@ -3,6 +3,7 @@
 set -eu
 
 FILE=asn.txt
+RC=0
 curl -f -o $FILE.tmp ftp://ftp.ripe.net/ripe/asnames/$FILE || RC=$?
 [ -f $FILE.tmp -a $RC -eq 0 ] && mv $FILE.tmp $FILE && gzip $FILE || rm -f $FILE.tmp $FILE
 
