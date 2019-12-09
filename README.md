@@ -1,6 +1,6 @@
 These instructions cover how to import MRT dump data (from BGP routing daemons) into a graph database ([neo4j](https://neo4j.com/)) to quickly explore it.
 
-The project also includes an Erlang implementation of the original Python [`mrt2bgpdump`](https://github.com/t2mune/mrtparse) implementation as it was found to be extremely slow.
+The project also includes an Erlang implementation of the original Python [`mrt2bgpdump`](https://github.com/t2mune/mrtparse) implementation as it was found to be extremely slow; I could have used [BGPStream](https://bgpstream.caida.org/) but it would have made the preflight stage more complicated.
 
 ## Related Links
 
@@ -20,9 +20,9 @@ The project also includes an Erlang implementation of the original Python [`mrt2
  * [Docker](https://docs.docker.com/install/) (sorry!)
  * [Erlang](https://www.erlang.org/downloads)
     * Quick install:
-      * **Debian 10:** `apt-get install erlang`
+      * **Debian 10:** `apt-get install --no-install-recommends erlang-base`
       * **CentOS 8:** `yum install -y epel-release && yum install erlang`
-    * you can alternatively install the Python [`mrtparse`](https://github.com/t2mune/mrtparse) tools and replace below `mrt2bgpdump.escript` with `mrt2bgpdump`; it is *really* slow though and after ~120k routes the output rate flatlines
+    * you can alternatively install the Python [`mrtparse`](https://github.com/t2mune/mrtparse) tools and replace below `mrt2bgpdump.escript` with `mrt2bgpdump`; it is *really* slow and after ~120k routes the output rate flatlines
 
 If you find you need to explore the MRT dumps you may find install [`mrtparse`](https://github.com/t2mune/mrtparse) helpful.
 
@@ -61,13 +61,13 @@ Now we extract the information we want from this (takes about a minute for `rrc0
         | sort -S 1G -u \
         | gzip -c > prefix2as.psv.gz
 
-    # peerings by protocol by origin AS number
+    # peerings by origin by protocol (we take care to trim AS-path prepending)
     zcat bgpdump.psv.gz \
         | sed -e 's/ {[0-9,]*}|/|/' \
-        | awk 'BEGIN { FS=OFS="|" } { if (index($6, ":") == 0) { V = 4 } else { V = 6 }; split($7, P, " "); for (I = 1; I < length(P); I++) if ( P[I] != P[I+1] ) print V, P[I], P[I+1], P[length(P)] }' \
-        | sort -S 1G -t'|' -k1,3 \
-        | awk 'BEGIN { FS="|" } function doit() { printf "%s|", K; for (I in A) printf "%d ", I; K=$1"|"$2"|"$3; printf "\n" } { if (K!=$1"|"$2"|"$3) { doit(); delete A }; A[$4]=1 } END { doit() }' \
-        | sed -e 's/ $//' \
+        | perl -p -e 's/(?:( [0-9]+)\1+)(?![0-9])/\1/g; s/((?: [0-9]+)+)\1/\1/g' \
+        | awk 'BEGIN { FS=OFS="|" } { if (index($6, ":") == 0) { V = 4 } else { V = 6 }; split($7, P, " "); for (I = 1; I < length(P); I++) print V, P[I], P[I+1], P[length(P)] }' \
+        | sort -S 1G -u \
+        | sort -S 1G -t '|' -k1,3n \
         | gzip -c > peer.psv.gz
 
 ## Import
@@ -121,24 +121,20 @@ Now in the top query box copy and paste the following Cypher statements (takes a
     USING PERIODIC COMMIT
     LOAD CSV FROM "file:///peer.psv.gz" AS row
     FIELDTERMINATOR '|'
-    WITH toInteger(row[0]) AS ipver, toInteger(row[1]) AS dnum, toInteger(row[2]) AS snum, [ x IN split(row[3], " ") | toInteger(x) ] AS origin
+    WITH [ x IN row | toInteger(x) ] AS row
+    WITH row[0] AS ipver, row[1] AS dnum, row[2] AS snum, row[3] AS num
     MATCH (s:AS { num: snum })
     MATCH (d:AS { num: dnum })
-    CREATE (d)-[p:PEER { ipver: ipver, origin: origin, ipver: ipver }]->(s);
+    CREATE (d)-[p:PEER { ipver: ipver }]->(s)
+    SET p.origin = num;
 
 ## Explore
 
 Now in the query box try the following statements:
 
     # peerings to 212.69.32.0/19
-    MATCH p=(:AS)-[r:PEER { ipver: n.ipver }]->(a:AS)<-[:ADVERTISEMENT]-(n:Prefix { cidr: "212.69.32.0/19" })
-    WHERE a.num IN r.origin
+    MATCH p=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(a:AS)<-[r:PEER { origin: a.num, ipver: n.ipver }]-(:AS)
     RETURN p;
-
-    # peerings between 212.69.32.0/19 and AS2497
-    MATCH p=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(o:AS)<-[r:PEER* { ipver: n.ipver }]-(:AS { num: 2497 })
-    WHERE all(x IN r WHERE o.num IN x.origin)
-    RETURN p
 
     # discover BGP Multiple Origin AS (MOAS) conflicts (~20k of 1m prefixes)
     MATCH (n:Prefix)-[r:ADVERTISEMENT]->(:AS)
@@ -149,10 +145,15 @@ Now in the query box try the following statements:
     MATCH p=(n)-[:ADVERTISEMENT]->(:AS)
     RETURN p;
 
+By ignoring the direction of the `:PEER` relationship we can infer some likely peerings:
+
+    # paths between 212.69.32.0/19 and AS2497
+    MATCH p=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(:AS)-[r:PEER*..10 { ipver: n.ipver }]-(:AS { num: 8916 })
+    RETURN p;
+
     # find the longest path to 212.69.32.0/19
-    MATCH p=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(o:AS)<-[r:PEER*..4 { ipver: n.ipver }]-(a:AS)
-    OPTIONAL MATCH (a)-[rr:PEER { ipver: n.ipver }]->()
-    WHERE NOT o.num IN rr.origin AND all(x IN r WHERE o.num IN x.origin)
+    MATCH p=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(:AS)<-[:PEER*..4 { ipver: n.ipver }]-(a:AS)
+    WHERE NOT (a)-[:PEER { ipver: n.ipver }]->()
     RETURN p
     ORDER BY length(p)
     LIMIT 10;
@@ -161,7 +162,7 @@ Now in the query box try the following statements:
     MATCH
       i=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(o:AS),
       (a:AS { num: 8916 }),
-      p=shortestPath((o)-[:PEER*]-(a))
+      p=allShortestPaths((o)-[:PEER*]-(a))
     RETURN i, p;
 
     # centrality of AS nodes
