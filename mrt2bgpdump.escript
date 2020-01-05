@@ -118,20 +118,19 @@ main6(<<PSType:8, PSLen0:8, Rest0/binary>>, RestMMM, RestMM, RestM, State, RIB) 
 main6(<<>>, RestMMM, RestMM, RestM, State, RIB) ->
 	main8(RestMMM, RestMM, RestM, State, RIB).
 
-main7(PSType, PSLen, PSVal, RestMMMM, RestMMM, RestMM, RestM, State, RIB) when PSType == ?AS_SEQUENCE ->
-	ASPath = lists:map(fun(P) ->
+main7(PSType, PSLen, PSVal, RestMMMM, RestMMM, RestMM, RestM, State, RIB0) when PSType == ?AS_SEQUENCE; PSType == ?AS_SET ->
+	ASList = lists:map(fun(P) ->
 		X0 = binary:part(PSVal, {P, 4}),
 		<<X:32>> = X0,
 		X
 	end, lists:seq(0, PSLen - 1, 4)),
-	main6(RestMMMM, RestMMM, RestMM, RestM, State, RIB#rib{ as_path = ASPath });
-main7(PSType, PSLen, PSVal, RestMMMM, RestMMM, RestMM, RestM, State, RIB) when PSType == ?AS_SET ->
-	ASSet = lists:usort(lists:map(fun(P) ->
-		X0 = binary:part(PSVal, {P, 4}),
-		<<X:32>> = X0,
-		X
-	end, lists:seq(0, PSLen - 1, 4))),
-	main6(RestMMMM, RestMMM, RestMM, RestM, State, RIB#rib{ as_set = ASSet });
+	RIB = if
+		PSType == ?AS_SEQUENCE ->
+			RIB0#rib{ as_path = ASList };
+		true ->
+			RIB0#rib{ as_set = ASList }
+	end,
+	main6(RestMMMM, RestMMM, RestMM, RestM, State, RIB);
 main7(_PSType, _PSLen, _PSVal, RestMMMM, RestMMM, RestMM, RestM, State, RIB) ->
 	main6(RestMMMM, RestMMM, RestMM, RestM, State, RIB).
 
