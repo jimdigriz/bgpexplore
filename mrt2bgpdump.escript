@@ -27,13 +27,12 @@
 -define(RIB_IPV4_UNICAST, 2).
 -define(RIB_IPV6_UNICAST, 4).
 -record(rib, {
-	peer_index		:: pos_integer(),
+	peer_index		:: non_neg_integer(),
 	timestamp		:: erlang:timestamp(),
 	prefix			:: inet:ip_address(),
 	prefix_len		:: non_neg_integer(),
 	origin			:: igp | egp | incomplete,
-	as_path			:: list(non_neg_integer()),
-	as_set			:: list(non_neg_integer())
+	as_path		= []	:: list(list(pos_integer()) | {pos_integer()})
 }).
 
 -define(ORIGIN, 1).
@@ -124,12 +123,13 @@ main7(PSType, PSLen, PSVal, RestMMMM, RestMMM, RestMM, RestM, State, RIB0) when 
 		<<X:32>> = X0,
 		X
 	end, lists:seq(0, PSLen - 1, 4)),
-	RIB = if
-		PSType == ?AS_SEQUENCE ->
-			RIB0#rib{ as_path = ASList };
+	ASPath = if
+		PSType == ?AS_SET ->
+			list_to_tuple(ASList);
 		true ->
-			RIB0#rib{ as_set = ASList }
+			ASList
 	end,
+	RIB = RIB0#rib{ as_path = [ASPath|RIB0#rib.as_path] },
 	main6(RestMMMM, RestMMM, RestMM, RestM, State, RIB);
 main7(_PSType, _PSLen, _PSVal, RestMMMM, RestMMM, RestMM, RestM, State, RIB) ->
 	main6(RestMMMM, RestMMM, RestMM, RestM, State, RIB).
@@ -142,20 +142,18 @@ main8(RestMMM, RestMM, RestM, State, RIB0 = #rib{ origin = Origin0 }) ->
 	NextHop = inet:ntoa(Peer#peer.ip),
 	ASNum = integer_to_list(Peer#peer.as),
 	CIDR = [ inet:ntoa(RIB0#rib.prefix), "/", integer_to_list(RIB0#rib.prefix_len) ],
-	ASPath0 = lists:join(" ", lists:map(fun integer_to_list/1, RIB0#rib.as_path)),
-	ASPath = if
-		is_list(RIB0#rib.as_set)->
-			ASPath0 ++ " {" ++ lists:join(",", lists:map(fun integer_to_list/1, RIB0#rib.as_set)) ++ "}";
-		true ->
-			ASPath0
-	end,
+	ASPath = lists:join(" ", lists:reverse(lists:map(fun
+		(X) when is_list(X) ->
+			lists:join(" ", lists:map(fun integer_to_list/1, X));
+		(X) when is_tuple(X) ->
+			"{" ++ lists:join(",", lists:map(fun integer_to_list/1, tuple_to_list(X))) ++ "}"
+	end, RIB0#rib.as_path))),
 	Origin = if Origin0 == igp -> "IGP"; Origin0 == egp -> "EGP"; true -> "INCOMPLETE" end,
 	Row = ["TABLE_DUMP2", DateTime, "B", NextHop, ASNum, CIDR, ASPath, Origin],
 	io:put_chars(lists:join("|", Row) ++ "\n"),
 	RIB = RIB0#rib{
 		origin	= #rib{}#rib.origin,
-		as_path	= #rib{}#rib.as_path,
-		as_set	= #rib{}#rib.as_set
+		as_path	= #rib{}#rib.as_path
 	},
 	main4(RestMMM, RestMM, RestM, State, RIB).
 
