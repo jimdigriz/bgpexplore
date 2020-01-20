@@ -129,7 +129,7 @@ main7(PSType, PSLen, PSVal, RestMMMM, RestMMM, RestMM, RestM, State, RIB0) when 
 		true ->
 			ASList
 	end,
-	RIB = RIB0#rib{ as_path = [ASPath|RIB0#rib.as_path] },
+	RIB = RIB0#rib{ as_path = RIB0#rib.as_path ++ [ASPath] },
 	main6(RestMMMM, RestMMM, RestMM, RestM, State, RIB);
 main7(_PSType, _PSLen, _PSVal, RestMMMM, RestMMM, RestMM, RestM, State, RIB) ->
 	main6(RestMMMM, RestMMM, RestMM, RestM, State, RIB).
@@ -142,12 +142,12 @@ main8(RestMMM, RestMM, RestM, State, RIB0 = #rib{ origin = Origin0 }) ->
 	NextHop = inet:ntoa(Peer#peer.ip),
 	ASNum = integer_to_list(Peer#peer.as),
 	CIDR = [ inet:ntoa(RIB0#rib.prefix), "/", integer_to_list(RIB0#rib.prefix_len) ],
-	ASPath = lists:join(" ", lists:reverse(lists:map(fun
+	ASPath = lists:join(" ", lists:map(fun
 		(X) when is_list(X) ->
 			lists:join(" ", lists:map(fun integer_to_list/1, X));
 		(X) when is_tuple(X) ->
 			"{" ++ lists:join(",", lists:map(fun integer_to_list/1, tuple_to_list(X))) ++ "}"
-	end, RIB0#rib.as_path))),
+	end, RIB0#rib.as_path)),
 	Origin = if Origin0 == igp -> "IGP"; Origin0 == egp -> "EGP"; true -> "INCOMPLETE" end,
 	Row = ["TABLE_DUMP2", DateTime, "B", NextHop, ASNum, CIDR, ASPath, Origin],
 	io:put_chars(lists:join("|", Row) ++ "\n"),
