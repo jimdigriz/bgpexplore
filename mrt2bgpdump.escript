@@ -125,7 +125,7 @@ main7(PSType, PSLen, PSVal, RestMMMM, RestMMM, RestMM, RestM, State, RIB0) when 
 	end, lists:seq(0, PSLen - 1, 4)),
 	ASPath = if
 		PSType == ?AS_SET ->
-			list_to_tuple(ASList);
+			list_to_tuple(lists:usort(ASList));	% https://tools.ietf.org/html/rfc4271#appendix-F.4
 		true ->
 			ASList
 	end,
