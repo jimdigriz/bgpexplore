@@ -244,7 +244,7 @@ On this point, hop length is not a good judge of latency, for example London to 
 
 [`RFC1930`](https://tools.ietf.org/html/rfc1930#section-7) states that generally a prefix will belong to a single AS though there are exceptions for both technical and accidental reasons.  When multiple ASs advertise the same prefix, this is known as [BGP Multiple Origin AS (MOAS) conflict](https://s3.amazonaws.com/www.xiaoliang.net/papers/zhao-imw01.pdf).
 
-We expect to find none but of course there are around 2500 in the 900k prefixes advertised:
+We expect to find none, but of course this is the real world and there are around 2500 in the 900k prefixes being advertised:
 
     MATCH (n:Prefix)-[r:ADVERTISEMENT]->(:AS)
     WITH n, count(r) AS rel_cnt
@@ -253,8 +253,6 @@ We expect to find none but of course there are around 2500 in the 900k prefixes 
     MATCH p=(n)-[:ADVERTISEMENT]->(:AS)
     RETURN p, n
     LIMIT 20;
-
-**N.B.** this was true for the RRC snapshot (`ris-data/bview.20191101.0000.06.gz`) I used, hopefully your experience matches mine
 
 ### BGP Hijacking
 
