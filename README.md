@@ -215,7 +215,7 @@ Of interest is the shortest path, which due to our schema choice is the only 'me
 
 ## Longest `AS_PATH` for AS0
 
-Cypher (and Neo4j) is optimised for finding the shortest paths in a graph but this does not stop us needing to occasionally [look for the longest path(https://neo4j.com/developer/kb/achieving-longestpath-using-cypher/); unfortunately this is usually a really expensive operation.
+Cypher (and Neo4j) is optimised for finding the shortest paths in a graph but this does not stop us needing to occasionally [look for the longest path](https://neo4j.com/developer/kb/achieving-longestpath-using-cypher/); unfortunately this is usually a really expensive operation.
 
 Fortunately what we can ask is what is the farthest away prefix by iterating over all ASs advertising prefixes, getting the shortest distance to each, sorting by path length in descending order and plucking off the one at the top:
 
@@ -238,9 +238,7 @@ On this point, hop length is not a good judge of latency, for example London to 
 
 ### Considering All AS Nodes
 
-...
-
-https://neo4j.com/developer/kb/all-shortest-paths-between-set-of-nodes/
+[WiP...](https://neo4j.com/developer/kb/all-shortest-paths-between-set-of-nodes/)
 
 ## MOAS Conflicts
 
