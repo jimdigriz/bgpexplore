@@ -232,7 +232,7 @@ Fortunately what we can ask is what is the farthest away prefix by iterating ove
 
 **N.B.** we `MATCH` and `collect()` the `Prefix`s before we `LIMIT` to avoid receiving the path duplicated for each prefix
 
-Looks like the [USA Army Network Enterprise Technology Command](https://en.wikipedia.org/wiki/USAISC) is a poor choice of a location to host a gaming server for Japan with a hop length of eleven, though there may be other non-technical reasons why you would not!
+Looks like the [USA Army Network Enterprise Technology Command](https://en.wikipedia.org/wiki/USAISC) is a poor choice of a location to host a gaming server for Japan (where AS0 is located) with a hop length of eleven, though there may be other non-technical reasons why you would not!
 
 On this point, hop length is not a good judge of latency, for example London to New York can be a single hop and be 70ms whilst two datacenters in the same city could have several hops separating them.
 
