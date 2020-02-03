@@ -6,7 +6,7 @@ mkdir -p ris-data
 cd ris-data
 
 DATE=${DATE:-$(date -u +%Y%m%d)}
-DATE2=$(date -d $DATE -u +%Y.%m)
+DATE2=$(echo $DATE | sed -e 's/^\(....\)\(....\).*$/\1.\2/')
 
 for I in $(seq 0 24 | xargs -n1 printf "%02d\n"); do
 	FILE=bview.$DATE.0000.$I.gz

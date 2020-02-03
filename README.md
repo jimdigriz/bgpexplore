@@ -30,6 +30,16 @@ Care has been taken to use shell scripts over code where possible to increase ac
 
 You will also need 10GiB of disk space for the raw/processed data files and about 8GiB of free RAM.
 
+## macOS
+
+You will need to have [`brew` installed](https://brew.sh/) and then you run:
+
+    brew install erlang gawk
+
+And optionally you may want to run:
+
+    pip3 install mrtparse
+
 # Overview
 
 As with any database, upfront thought must be put into what [schema](https://en.wikipedia.org/wiki/Database_schema) to use, this cannot be done without first understanding a bit about the construction of our datasets.
@@ -69,7 +79,7 @@ Use the following to fetch a snapshot of the global routing table (about 3GB ove
 To decorate the AS nodes, we build a list of mappings of ASNs to their registered organisation/country:
 
     gzip -dc asn.txt.gz \
-        | sed -e 's/^\(23456\) \(.*\)$/\1\t-Reserved AS-\t\2\tZZ/; s/\( -Reserved AS-\), ZZ,/\1,/; s/^\([0-9]*\) \(.*\) - \(.*\), \([A-Z][A-Z]\)$/\1\t\2\t\3\t\4/; s/^\([0-9]*\) \(.*\), \([A-Z][A-Z]\)$/\1\t\2\t\2\t\3/;' \
+        | env LC_ALL=C sed -e 's/^\(23456\) \(.*\)$/\1\t-Reserved AS-\t\2\tZZ/; s/\( -Reserved AS-\), ZZ,/\1,/; s/^\([0-9]*\) \(.*\) - \(.*\), \([A-Z][A-Z]\)$/\1\t\2\t\3\t\4/; s/^\([0-9]*\) \(.*\), \([A-Z][A-Z]\)$/\1\t\2\t\2\t\3/;' \
         | gzip -c > asn.tsv.gz
 
 **N.B.** the `sed` is used to fix up the original source file to make it consistent and machine readable
