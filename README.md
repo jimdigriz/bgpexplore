@@ -68,7 +68,7 @@ Use the following to fetch a snapshot of the global routing table (about 3GB ove
 
 To decorate the AS nodes, we build a list of mappings of ASNs to their registered organisation/country:
 
-    zcat asn.txt.gz \
+    gzip -dc asn.txt.gz \
         | sed -e 's/^\(23456\) \(.*\)$/\1\t-Reserved AS-\t\2\tZZ/; s/\( -Reserved AS-\), ZZ,/\1,/; s/^\([0-9]*\) \(.*\) - \(.*\), \([A-Z][A-Z]\)$/\1\t\2\t\3\t\4/; s/^\([0-9]*\) \(.*\), \([A-Z][A-Z]\)$/\1\t\2\t\2\t\3/;' \
         | gzip -c > asn.tsv.gz
 
@@ -97,7 +97,7 @@ Create a list of prefixes to paths:
     # awk rather than 'sort -u' as it is faster and uses less memory for our use case here
     # grep removes the default route prefixes we are not interested in
     find ris-data -type f -name '*.bgpdump.psv.gz' \
-        | xargs zcat \
+        | xargs gzip -dc \
         | cut -d'|' -f6,7 \
         | sed -e 's/{\([0-9]*\)}/\1/g; s/ {.*}$//; /{.*}/ d' \
         | perl -p -e 's/(?:( [0-9]+)\1+)(?![0-9])/\1/g; s/((?: [0-9]+)+)\1/\1/g' \
@@ -107,7 +107,7 @@ Create a list of prefixes to paths:
 
 Create a list of prefixes to origins (should be a 1:1 mapping but occasionally is not):
 
-    zcat prefix2aspath.psv.gz \
+    gzip -dc prefix2aspath.psv.gz \
         | sed -e 's/|.* \([0-9]*\)$/|\1/' \
         | awk 'BEGIN { FS="|" } { A[$1][$2]++ } END { for (P in A) { printf "%s|", P; for (N in A[P]) printf "%s ", N; print "" } }' \
         | sed -e 's/ $//' \
@@ -115,13 +115,13 @@ Create a list of prefixes to origins (should be a 1:1 mapping but occasionally i
     
 Create a list of the paths between ASs:
 
-    zcat prefix2aspath.psv.gz \
+    gzip -dc prefix2aspath.psv.gz \
         | awk 'BEGIN { FS="|" } { if (index($1, ":") == 0) { V = 4 } else { V = 6 }; split($2, P, " "); for (I = 1; I < length(P); I++) A[V "|" P[I] "|" P[I+1]]=1 } END { for (X in A) print X }' \
         | gzip -c > aspath.psv.gz
 
 We append to this file (`gzip` supports concatenation of `.gz` files) routes synthesised peerings for AS0 (where we will treat the MRT dump coming from):
 
-    zcat prefix2aspath.psv.gz \
+    gzip -dc prefix2aspath.psv.gz \
         | cut -d' ' -f1 \
         | cut -d'|' -f2 \
         | sort -u \
