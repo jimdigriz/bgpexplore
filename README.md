@@ -167,6 +167,7 @@ Now in the top query box copy and paste the following Cypher statements (takes a
     CREATE (a:AS { num: toInteger(row[0]) })
     SET a.netname = row[1], a.org = row[2], a.tld = row[3];
     
+    USING PERIODIC COMMIT
     LOAD CSV FROM 'file:///prefix2origins.psv.gz' AS row FIELDTERMINATOR '|'
     WITH CASE WHEN row[0] CONTAINS ':' THEN 6 ELSE 4 END AS version, row[0] AS cidr, [ x IN split(row[1], " ") | toInteger(x) ] AS origins
     CREATE (p:Prefix { cidr: cidr })
@@ -176,6 +177,7 @@ Now in the top query box copy and paste the following Cypher statements (takes a
     MATCH (o:AS { num: origin })
     CREATE (p)-[:ADVERTISEMENT]->(o);
     
+    USING PERIODIC COMMIT
     LOAD CSV FROM 'file:///aspath.psv.gz' AS row FIELDTERMINATOR '|'
     WITH [ x IN row | toInteger(x) ] AS row
     WITH row[0] AS version, row[1] AS snum, row[2] AS dnum
