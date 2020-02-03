@@ -119,7 +119,7 @@ Create a list of prefixes to origins (should be a 1:1 mapping but occasionally i
 
     gzip -dc prefix2aspath.psv.gz \
         | sed -e 's/|.* \([0-9]*\)$/|\1/' \
-        | awk 'BEGIN { FS="|" } { A[$1][$2]++ } END { for (P in A) { printf "%s|", P; for (N in A[P]) printf "%s ", N; print "" } }' \
+        | gawk 'BEGIN { FS="|" } { A[$1][$2]++ } END { for (P in A) { printf "%s|", P; for (N in A[P]) printf "%s ", N; print "" } }' \
         | sed -e 's/ $//' \
         | gzip -c > prefix2origins.psv.gz
     
