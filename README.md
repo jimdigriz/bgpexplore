@@ -217,8 +217,8 @@ To show the paths between AS0 (where our routing table dump come from) and the p
 
 Of interest is the shortest path, which due to our schema choice is the only 'metric' now available for routing decisions, to describe how traffic moves from AS0 to our prefix:
 
-    MATCH i=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(o:AS),
-    MATCH (a:AS { num: 0 }),
+    MATCH i=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(o:AS)
+    MATCH (a:AS { num: 0 })
     MATCH p=allShortestPaths((o)<-[r:PEER*]-(a))
     WHERE all(x in r WHERE x.version = n.version)
     RETURN i, p
