@@ -90,8 +90,9 @@ As the MRT exports are in a binary format we need to convert them to a parsable 
 
 **N.B.** you will need to amend the `bview` filename to reflect the date of the routing table snapshot downloaded
 
-For the first time you run through these instructions you should only process the downloaded `06` export as it is small and will let you quickly get up and running in under ten minutes; the results from our queries below will make more sense too.  Later though you may want to process all the exports dumps which on an [i7-8550U](https://ark.intel.com/content/www/us/en/ark/products/122589/intel-core-i7-8550u-processor-8m-cache-up-to-4-00-ghz.html) takes about 90 minutes to run end to end (30 minutes alone in the following `mrt2bgpdump` step):
+For the first time you run through these instructions you should only process the downloaded `06` export as you have just done above as it is small and will let you quickly get up and running in under ten minutes; the results from our queries below will make more sense too.  Later though you may want to process all the exports dumps which on an [i7-8550U](https://ark.intel.com/content/www/us/en/ark/products/122589/intel-core-i7-8550u-processor-8m-cache-up-to-4-00-ghz.html) takes about 90 minutes to run end to end (30 minutes alone in the following `mrt2bgpdump` step) which you can do with:
 
+    # only run this if you want all the data imported which for the first time you will not!
     find ris-data -type f -name 'bview.*.gz' \! -name '*.bgpdump.psv.gz' \
         | nice -n19 ionice -c3 xargs -t -P$(getconf _NPROCESSORS_ONLN) -I{} /bin/sh -c "./mrt2bgpdump.escript '{}' | gzip -c > '{}.bgpdump.psv.gz'"
 
