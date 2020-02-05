@@ -196,9 +196,9 @@ Now in the top query box copy and paste the all the following multiple Cypher st
     MATCH p=(a:AS)-[r:PEER]-(a:AS)
     DELETE r;
 
-![Screenshot of data being actively imported](images/importing.png "Importing the data")
-
 **N.B.** if this does not make any progress after five minutes, you may have missed both the `CREATE CONSTRAINT` statements, you can confirm this by [typing `:schema` into the query window](https://neo4j.com/docs/cypher-manual/3.5/schema/constraints/#constraints-get-a-list-of-all-constraints-in-the-database); if you have none, restart the import process from the beginning (remember to kill and restart the docker container)
+
+![Screenshot of data being actively imported](images/importing.png "Importing the data")
 
 # Usage
 
@@ -239,9 +239,9 @@ Of interest is the shortest path, which due to our schema choice is the only 'me
     WHERE all(x in rr WHERE x.version = n.version)
     RETURN i, p;
 
-![Screenshot of our inferrer routing table of rrc06](images/route.png "Route to 212.69.32.0/19 from rrc06")
-
 **N.B.** [`allShortestPaths()`](https://neo4j.com/docs/graph-algorithms/current/labs-algorithms/all-pairs-shortest-path/) does not accept constraints so we have to use the [`all()` predicate](https://neo4j.com/docs/cypher-manual/current/functions/predicate/#functions-all)
+
+![Screenshot of our inferrer routing table of rrc06](images/route.png "Route to 212.69.32.0/19 from rrc06")
 
 ## Longest `AS_PATH` for `rrc06`
 
