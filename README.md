@@ -2,7 +2,7 @@ This project aims to expose the readers to [BGP](https://en.wikipedia.org/wiki/B
 
 Assumed is that you have passing knowledge but not hands-on experience of the terminology used and the problem space occupied by routing, [BGP](https://blog.cdemi.io/beginners-guide-to-understanding-bgp/) and [graph databases](https://neo4j.com/developer/graph-database/).
 
-Care has been taken to use shell scripts over code where possible to increase accessibility of this project to others as well as the choice of using [Neo4j](https://neo4j.com/).
+Care has been taken to use shell scripts over code where possible to increase accessibility of this project to others as well as the choice of using [Neo4j](https://neo4j.com/) under [Docker](https://docker.com).
 
 ## Related Links
 
@@ -36,7 +36,7 @@ You will need to have [`brew` installed](https://brew.sh/) and then you run:
 
     brew install erlang gawk
 
-And optionally you may want to run:
+Optionally you may want to run:
 
     pip3 install mrtparse
 
@@ -90,12 +90,19 @@ As the MRT exports are in a binary format we need to convert them to a parsable 
 
 **N.B.** you will need to amend the `bview` filename to reflect the date of the routing table snapshot downloaded
 
-For the first time you run through these instructions you should only process the downloaded `06` export as it is small and will let you quickly get up and running.  Later though you will want to process all the exports dumps which on an [i7-8550U](https://ark.intel.com/content/www/us/en/ark/products/122589/intel-core-i7-8550u-processor-8m-cache-up-to-4-00-ghz.html) you take about 30 minutes to run:
+For the first time you run through these instructions you should only process the downloaded `06` export as it is small and will let you quickly get up and running in under ten minutes; the results from our queries below will make more sense too.  Later though you may want to process all the exports dumps which on an [i7-8550U](https://ark.intel.com/content/www/us/en/ark/products/122589/intel-core-i7-8550u-processor-8m-cache-up-to-4-00-ghz.html) takes about 90 minutes to run end to end (30 minutes alone in the following `mrt2bgpdump` step):
 
     find ris-data -type f -name 'bview.*.gz' \! -name '*.bgpdump.psv.gz' \
         | nice -n19 ionice -c3 xargs -t -P$(getconf _NPROCESSORS_ONLN) -I{} /bin/sh -c "./mrt2bgpdump.escript '{}' | gzip -c > '{}.bgpdump.psv.gz'"
 
 Neo4j supports [importing CSV files](https://neo4j.com/developer/guide-import-csv/) which we will use but is slow unless you take a lot of care in arranging your data to make use of indexes and `CREATE` over `MERGE` meaning we unfortunately have to do a lot of upfront data pre-processing.
+
+Create a list of paths from our RRCs to the ASs they peer with:
+
+    find ris-data -type f -name '*.bgpdump.psv.gz' \
+        | xargs -I{} /bin/sh -c "gzip -dc {} | cut -d'|' -f5 | sort -u | xargs -n1 printf '{}|%s\n'" \
+        | sed -e 's/^.*\.\([0-9]*\)\.gz\.bgpdump\.psv\.gz/\1/' \
+        | gzip -c > rrc2path.psv.gz
 
 Create a list of prefixes to paths:
 
@@ -104,15 +111,14 @@ Create a list of prefixes to paths:
     #  trailing AS_SETs are stripped out and we treat the prefix as being connected to end of the AS_PATH
     #  for the few remaining AS_SETs that exist in the middle of the data we ignore the entire advertisement
     # perl to remove AS_PATH prepending
-    # awk rather than 'sort -u' as it is faster and uses less memory for our use case here
+    #  this is not perfect, but we remove the stray loops in the import phase
     # grep removes the default route prefixes we are not interested in
     find ris-data -type f -name '*.bgpdump.psv.gz' \
         | xargs gzip -dc \
         | cut -d'|' -f6,7 \
         | sed -e 's/{\([0-9]*\)}/\1/g; s/ {.*}$//; /{.*}/ d' \
         | perl -p -e 's/(?:( [0-9]+)\1+)(?![0-9])/\1/g; s/((?: [0-9]+)+)\1/\1/g' \
-        | awk '!A[$0]++' \
-        | grep -v -E '^(0\.0\.0\.0|::)/0\|' \
+        | grep -v '^\(0\.0\.0\.0\|::\)/0|' \
         | gzip -c > prefix2aspath.psv.gz
 
 Create a list of prefixes to origins (should be a 1:1 mapping but occasionally is not):
@@ -128,16 +134,6 @@ Create a list of the paths between ASs:
     gzip -dc prefix2aspath.psv.gz \
         | awk 'BEGIN { FS="|" } { if (index($1, ":") == 0) { V = 4 } else { V = 6 }; split($2, P, " "); for (I = 1; I < length(P); I++) A[V "|" P[I] "|" P[I+1]]=1 } END { for (X in A) print X }' \
         | gzip -c > aspath.psv.gz
-
-We append to this file (`gzip` supports concatenation of `.gz` files) routes synthesised peerings for AS0 (where we will treat the MRT dump coming from):
-
-    gzip -dc prefix2aspath.psv.gz \
-        | cut -d' ' -f1 \
-        | cut -d'|' -f2 \
-        | sort -u \
-        | xargs -n1 printf "4|0|%s\n" \
-        | sed -e 'p; s/^4/6/' \
-        | gzip -c >> aspath.psv.gz
 
 ## Import
 
@@ -164,14 +160,21 @@ Point your browser at http://localhost:7474 and log in using 'No authentication'
  * check 'Enable multi statement query editor'
  * uncheck ['Connect result nodes'](https://stackoverflow.com/questions/50065869/neo4j-show-only-specific-relations-in-the-browser-graph-view)
 
-Now in the top query box copy and paste the all the following multiple Cypher statements and execute by clicking on the 'play' symbol (takes about two minutes to work through `rrc06`):
+Now in the top query box copy and paste the all the following multiple Cypher statements and execute by clicking on the 'play' symbol (takes about two minutes to work through *any* dataset size):
 
+    CREATE CONSTRAINT ON (r:RRC) ASSERT r.id IS UNIQUE;
     CREATE CONSTRAINT ON (a:AS) ASSERT a.num IS UNIQUE;
     CREATE CONSTRAINT ON (p:Prefix) ASSERT p.cidr IS UNIQUE;
     
     LOAD CSV FROM 'file:///asn.tsv.gz' AS row FIELDTERMINATOR '\t'
     CREATE (a:AS { num: toInteger(row[0]) })
     SET a.netname = row[1], a.org = row[2], a.tld = row[3];
+    
+    LOAD CSV FROM 'file:///rrc2path.psv.gz' AS row FIELDTERMINATOR '|'
+    MERGE (r:RRC { id: row[0] })
+    WITH toInteger(row[1]) AS num, r
+    MATCH (a:AS { num: num })
+    CREATE (r)-[:PEER { version: 6 }]->(a), (r)-[:PEER { version: 4 }]->(a);
     
     USING PERIODIC COMMIT
     LOAD CSV FROM 'file:///prefix2origins.psv.gz' AS row FIELDTERMINATOR '|'
@@ -189,6 +192,9 @@ Now in the top query box copy and paste the all the following multiple Cypher st
     WITH row[0] AS version, row[1] AS snum, row[2] AS dnum
     MATCH (s:AS { num: snum }), (d:AS { num: dnum })
     CREATE (s)-[:PEER { version: version }]->(d);
+    
+    MATCH p=(a:AS)-[r:PEER]-(a:AS)
+    DELETE r;
 
 **N.B.** if this does not make any progress after five minutes, you may have missed both the `CREATE CONSTRAINT` statements, you can confirm this by [typing `:schema` into the query window](https://neo4j.com/docs/cypher-manual/3.5/schema/constraints/#constraints-get-a-list-of-all-constraints-in-the-database); if you have none, restart the import process from the beginning (remember to kill and restart the docker container)
 
@@ -215,44 +221,45 @@ This query can be expanded to return the prefix and origin AS relationships with
 
 ## Paths to 212.69.32.0/19
 
-To show the paths between AS0 (where our routing table dump come from) and the prefix we can use:
+To show the paths between `rrc06` (where our routing table dump come from) and the prefix we can use:
 
-    MATCH p=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(:AS)<-[:PEER*..5 { version: n.version }]-(:AS { num: 0 })
+    MATCH p=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(:AS)<-[:PEER*..5 { version: n.version }]-(:AS)<-[:PEER]-(:RRC { id: '06' })
     RETURN p
     LIMIT 20;
 
 **N.B.** we limit the `PEER` relationship length to 5 to avoid it getting out of control, and we only want the first 20 results to stop the UI slowing to a crawl.
 
-Of interest is the shortest path, which due to our schema choice is the only 'metric' now available for routing decisions, to describe how traffic moves from AS0 to our prefix:
+Of interest is the shortest path, which due to our schema choice is the only 'metric' now available for routing decisions, to describe how traffic moves from `rrc06` to our prefix:
 
     MATCH i=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(o:AS)
-    MATCH (a:AS { num: 0 })
-    MATCH p=allShortestPaths((o)<-[r:PEER*]-(a))
-    WHERE all(x in r WHERE x.version = n.version)
-    RETURN i, p
+    MATCH (r:RRC { id: '06' })
+    MATCH p=allShortestPaths((o)<-[rr:PEER*]-(r))
+    WHERE all(x in rr WHERE x.version = n.version)
+    RETURN i, p;
 
 **N.B.** [`allShortestPaths()`](https://neo4j.com/docs/graph-algorithms/current/labs-algorithms/all-pairs-shortest-path/) does not accept constraints so we have to use the [`all()` predicate](https://neo4j.com/docs/cypher-manual/current/functions/predicate/#functions-all)
 
-## Longest `AS_PATH` for AS0
+## Longest `AS_PATH` for `rrc06`
 
 Cypher (and Neo4j) is optimised for finding the shortest paths in a graph but this does not stop us needing to occasionally [look for the longest path](https://neo4j.com/developer/kb/achieving-longestpath-using-cypher/); unfortunately this is usually a really expensive operation.
 
-Fortunately what we can ask is what is the farthest away prefix by iterating over all ASs advertising prefixes, getting the shortest distance to each, sorting by path length in descending order and plucking off the one at the top:
+Fortunately what we can ask is what is the farthest away prefix by iterating over all ASs advertising prefixes, getting the shortest distance to each, sorting by path length in descending order and returning the first ten at the top:
 
     MATCH (n:AS)<-[:ADVERTISEMENT]-(:Prefix)
-    WHERE n.num <> 0
     WITH DISTINCT n as n
-    MATCH (a:AS { num: 0 })
-    MATCH p=shortestPath((n)<-[:PEER*]-(a))
+    MATCH (r:RRC { id: '06' })
+    MATCH p=shortestPath((n)<-[:PEER*]-(r))
     MATCH q=(n)<-[:ADVERTISEMENT]-(:Prefix)
     WITH p, collect(q) AS q
     ORDER BY length(p) DESC
-    LIMIT 1
-    RETURN p, q
+    LIMIT 10
+    RETURN p, q;
 
 **N.B.** we `MATCH` and `collect()` the `Prefix`s before we `LIMIT` to avoid receiving the path duplicated for each prefix
 
-Looks like the [USA Army Network Enterprise Technology Command](https://en.wikipedia.org/wiki/USAISC) is a poor choice of a location to host a gaming server for Japan (where AS0 is located) with a hop length of eleven, though there may be other non-technical reasons why you would not!
+![Results for the Longest Path Query](images/longest-paths.svg)
+
+Looks like the [USA Army Network Enterprise Technology Command (AS320)](https://en.wikipedia.org/wiki/USAISC) is a poor choice of a location to host a gaming server for Japan ([`rrc06`'s location](https://www.ripe.net/analyse/internet-measurements/routing-information-service-ris/ris-raw-data)) with a hop length of eleven, though there may be other non-technical reasons why you would not!
 
 On this point, hop length is not a good judge of latency, for example London to New York can be a single hop and be 70ms whilst two datacenters in the same city could have several hops separating them.
 
@@ -278,7 +285,7 @@ We expect to find none, but of course this is the real world and there are aroun
 
 If a [prefix is hijacked](https://en.wikipedia.org/wiki/BGP_hijacking) we could expect for one type of attack/configuration-error more than one AS number for a given prefix to exist.
 
-We can simulate this by adding the nodes and relationships to set up [AS64496](https://tools.ietf.org/html/rfc5398) to start to advertising 212.69.32.0/19.  Firstly we need to find another AS to set up a peering relationship with that has prefixes seen by AS0 (lets pick South Africa as it is far from both Europe and Japan, the latter where AS0 is located for `rrc06`):
+We can simulate this by adding the nodes and relationships to set up [AS64496](https://tools.ietf.org/html/rfc5398) to start to advertising 212.69.32.0/19.  Firstly we need to find another AS to set up a peering relationship with that has prefixes seen by `rrc06` (lets pick South Africa as it is far from both Europe and Japan, the latter where `rrc06` is located):
 
     MATCH (n:Prefix { cidr: "212.69.32.0/19" })
     MATCH (:Prefix { version: n.version })-[:ADVERTISEMENT]->(a:AS { tld: 'ZA' })
@@ -298,4 +305,4 @@ When I ran the above I got AS327751 so lets use it:
       y=(o)<-[:PEER { version: n.version }]-(a)
     RETURN x, y;
 
-We can investigate how this could impact the routing table of AS0 to 212.69.32.0/19 by using our earlier query (the one using `allShortestPaths()`).
+We can investigate how this could impact the routing table of `rrc06` to 212.69.32.0/19 by using our earlier query (the one using `allShortestPaths()`).  You should see `212.69.32.0/19` now advertises through two different ASs and our hijacker operating AS64496 can steal the portion of the traffic destined for that prefix and traverses the path to it.
