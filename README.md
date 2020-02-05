@@ -162,7 +162,7 @@ Point your browser at http://localhost:7474 and log in using 'No authentication'
  * uncheck 'Code font ligatures'
  * check 'Enhanced query editor'
  * check 'Enable multi statement query editor'
- * [uncheck 'Connect result nodes'](https://stackoverflow.com/questions/50065869/neo4j-show-only-specific-relations-in-the-browser-graph-view)
+ * uncheck ['Connect result nodes'](https://stackoverflow.com/questions/50065869/neo4j-show-only-specific-relations-in-the-browser-graph-view)
 
 Now in the top query box copy and paste the all the following multiple Cypher statements and execute by clicking on the 'play' symbol (takes about two minutes to work through `rrc06`):
 
@@ -190,7 +190,7 @@ Now in the top query box copy and paste the all the following multiple Cypher st
     MATCH (s:AS { num: snum }), (d:AS { num: dnum })
     CREATE (s)-[:PEER { version: version }]->(d);
 
-**N.B.** if this does not make any progress after five minutes, you may have missed both the `CREATE CONSTRAINT` statements, you can confirm this by [typing `:schema` into the query window](https://neo4j.com/docs/cypher-manual/3.5/schema/constraints/#constraints-get-a-list-of-all-constraints-in-the-database); if you have none, restart the import process from the beginning (remember to kill and restart the docker container).
+**N.B.** if this does not make any progress after five minutes, you may have missed both the `CREATE CONSTRAINT` statements, you can confirm this by [typing `:schema` into the query window](https://neo4j.com/docs/cypher-manual/3.5/schema/constraints/#constraints-get-a-list-of-all-constraints-in-the-database); if you have none, restart the import process from the beginning (remember to kill and restart the docker container)
 
 # Usage
 
