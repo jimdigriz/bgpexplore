@@ -212,7 +212,7 @@ Here are some example queries you can try to explore the data with by typing the
 
 If you double click on the resulting node, it will expand to show its relationships to other nodes.
 
-Note that CIDR is a string match and not an IP address match.  If you want to look for your own IP and its prefix on the Internet go to https://bgp.he.net/ to find out what you are being 'announced' as and use that to match against.
+Note that CIDR is a string match and not an IP address match.  If you want to look for your own IP and its prefix (both IPv4 and IPv6 can be used here) on the Internet go to https://bgp.he.net/ to find out what you are being 'announced' as and use that to match against.
 
 ## Peerings for 212.69.32.0/19
 
@@ -288,7 +288,7 @@ We expect to find none, but of course this is the real world and there are aroun
 
 If a [prefix is hijacked](https://en.wikipedia.org/wiki/BGP_hijacking) we could expect for one type of attack/configuration-error more than one AS number for a given prefix to exist.
 
-We can simulate this by adding the nodes and relationships to set up [AS64496](https://tools.ietf.org/html/rfc5398) to start to advertising 212.69.32.0/19.  Firstly we need to find another AS to set up a peering relationship with that has prefixes seen by `rrc06` (lets pick South Africa as it is far from both Europe and Japan, the latter where `rrc06` is located):
+We can simulate this by adding the nodes and relationships to set up [AS64497](https://tools.ietf.org/html/rfc5398) to start to advertising 212.69.32.0/19.  Firstly we need to find another AS to set up a peering relationship with that has prefixes seen by `rrc06` (lets pick South Africa as it is far from both Europe and Japan, the latter where `rrc06` is located):
 
     MATCH (n:Prefix { cidr: "212.69.32.0/19" })
     MATCH (:Prefix { version: n.version })-[:ADVERTISEMENT]->(a:AS { tld: 'ZA' })
@@ -301,13 +301,13 @@ We can simulate this by adding the nodes and relationships to set up [AS64496](h
 When I ran the above I got AS327751 so lets use it:
 
     MATCH (n:Prefix { cidr: "212.69.32.0/19" })
-    MATCH (o:AS { num: 64496 })
+    MATCH (o:AS { num: 64497 })
     MATCH (a:AS { num: 327751 })
     CREATE
       x=(n)-[:ADVERTISEMENT]->(o),
       y=(o)<-[:PEER { version: n.version }]-(a)
     RETURN x, y;
 
-We can investigate how this could impact the routing table of `rrc06` to 212.69.32.0/19 by using our earlier query (the one using `allShortestPaths()`).  You should see `212.69.32.0/19` now advertises through two different ASs and our hijacker operating AS64496 can steal the portion of the traffic destined for that prefix and traverses the path to it.
+We can investigate how this could impact the routing table of `rrc06` to 212.69.32.0/19 by using our earlier query (the one using `allShortestPaths()`).  You should see `212.69.32.0/19` now advertises through two different ASs and our hijacker operating AS64497 can steal the portion of the traffic destined for that prefix and traverses the path to it.
 
 ![Graph showing two advertisements for 212.69.32.0/19](images/hijack.png "What a BGP Hijack Might Look Like")
