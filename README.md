@@ -144,9 +144,10 @@ We append to this file (`gzip` supports concatenation of `.gz` files) routes syn
 Run the following from your project directory:
 
     mkdir -p plugins
-    wget -P plugins \
-        https://github.com/neo4j-contrib/neo4j-apoc-procedures/releases/download/3.5.0.7/apoc-3.5.0.7-all.jar \
-        https://github.com/neo4j-contrib/neo4j-graph-algorithms/releases/download/3.5.4.0/graph-algorithms-algo-3.5.4.0.jar
+    cd plugins
+    curl -OJL https://github.com/neo4j-contrib/neo4j-apoc-procedures/releases/download/3.5.0.7/apoc-3.5.0.7-all.jar
+    curl -OJL https://github.com/neo4j-contrib/neo4j-graph-algorithms/releases/download/3.5.4.0/graph-algorithms-algo-3.5.4.0.jar
+    cd -
 
     docker run -it --rm \
         --publish=127.0.0.1:7474:7474 --publish=127.0.0.1:7687:7687 \
