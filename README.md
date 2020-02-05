@@ -266,7 +266,7 @@ Fortunately what we can ask is what is the farthest away prefix by iterating ove
 
 ![Graph showing the ten longest AS_PATHs](images/longest-paths.png "Results for the Longest Path Query")
 
-Looks like the [USA Army Network Enterprise Technology Command (AS320)](https://en.wikipedia.org/wiki/USAISC) is a poor choice of a location to host a gaming server for Japan ([`rrc06`'s location](https://www.ripe.net/analyse/internet-measurements/routing-information-service-ris/ris-raw-data)) with a hop length of eleven, though there may be other non-technical reasons why you would not!
+Looks like the [USA Army Network Enterprise Technology Command (AS320)](https://en.wikipedia.org/wiki/USAISC) is a poor choice of a location to host a gaming server for Japan ([`rrc06`'s location](https://www.ripe.net/analyse/internet-measurements/routing-information-service-ris/ris-raw-data)) with a hop length of nine, though there may be other non-technical reasons why you would not!
 
 On this point, hop length is not a good judge of latency, for example London to New York can be a single hop and be 70ms whilst two datacenters in the same city could have several hops separating them.
 
