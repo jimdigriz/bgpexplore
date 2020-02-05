@@ -44,7 +44,7 @@ Optionally you may want to run:
 
 As with any database, upfront thought must be put into what [schema](https://en.wikipedia.org/wiki/Database_schema) to use, this cannot be done without first understanding a bit about the construction of our datasets.
 
-BGP works by assigning an Autonomous Systems ('AS') Number to every entity on the Internet through which they advertise either IP address space ('prefix') they terminate (eg. Amazon are assigned AS16509 and host systems in the IP range 34.240.0.0/13) and/or act as transit that advertising connectivity between ASs (eg. Hurricane Electric provide transit between Choopa on AS20473 and Infinity Developments Limited on AS12496).
+[BGP](https://tools.ietf.org/html/rfc4271) works by assigning an Autonomous Systems ('AS') Number to every entity on the Internet through which they advertise either IP address space ('prefix') they terminate (eg. Amazon are assigned AS16509 and host systems in the IP range 34.240.0.0/13) and/or act as transit that advertising connectivity between ASs (eg. Hurricane Electric provide transit between Choopa on AS20473 and Infinity Developments Limited on AS12496).
 
 So version one of our graph schema may look like:
 
@@ -210,6 +210,8 @@ Here are some example queries you can try to explore the data with by typing the
     RETURN a;
 
 If you double click on the resulting node, it will expand to show its relationships to other nodes.
+
+Note that CIDR is a string match and not an IP address match.  If you want to look for your own IP and its prefix on the Internet go to https://bgp.he.net/ to find out what you are being 'announced' as and use that to match against.
 
 ## Peerings for 212.69.32.0/19
 
