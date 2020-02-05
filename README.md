@@ -257,7 +257,7 @@ Fortunately what we can ask is what is the farthest away prefix by iterating ove
 
 **N.B.** we `MATCH` and `collect()` the `Prefix`s before we `LIMIT` to avoid receiving the path duplicated for each prefix
 
-![Graph showing the ten longest `AS_PATH`s](images/longest-paths.svg "Results for the Longest Path Query")
+![Graph showing the ten longest AS_PATHs](images/longest-paths.png "Results for the Longest Path Query")
 
 Looks like the [USA Army Network Enterprise Technology Command (AS320)](https://en.wikipedia.org/wiki/USAISC) is a poor choice of a location to host a gaming server for Japan ([`rrc06`'s location](https://www.ripe.net/analyse/internet-measurements/routing-information-service-ris/ris-raw-data)) with a hop length of eleven, though there may be other non-technical reasons why you would not!
 
