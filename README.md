@@ -196,6 +196,8 @@ Now in the top query box copy and paste the all the following multiple Cypher st
     MATCH p=(a:AS)-[r:PEER]-(a:AS)
     DELETE r;
 
+![Screenshot of data being actively imported](images/importing.png "Importing the data")
+
 **N.B.** if this does not make any progress after five minutes, you may have missed both the `CREATE CONSTRAINT` statements, you can confirm this by [typing `:schema` into the query window](https://neo4j.com/docs/cypher-manual/3.5/schema/constraints/#constraints-get-a-list-of-all-constraints-in-the-database); if you have none, restart the import process from the beginning (remember to kill and restart the docker container)
 
 # Usage
@@ -236,6 +238,8 @@ Of interest is the shortest path, which due to our schema choice is the only 'me
     MATCH p=allShortestPaths((o)<-[rr:PEER*]-(r))
     WHERE all(x in rr WHERE x.version = n.version)
     RETURN i, p;
+
+![Screenshot of our inferrer routing table of rrc06](images/route.png "Route to 212.69.32.0/19 from rrc06")
 
 **N.B.** [`allShortestPaths()`](https://neo4j.com/docs/graph-algorithms/current/labs-algorithms/all-pairs-shortest-path/) does not accept constraints so we have to use the [`all()` predicate](https://neo4j.com/docs/cypher-manual/current/functions/predicate/#functions-all)
 
@@ -306,3 +310,5 @@ When I ran the above I got AS327751 so lets use it:
     RETURN x, y;
 
 We can investigate how this could impact the routing table of `rrc06` to 212.69.32.0/19 by using our earlier query (the one using `allShortestPaths()`).  You should see `212.69.32.0/19` now advertises through two different ASs and our hijacker operating AS64496 can steal the portion of the traffic destined for that prefix and traverses the path to it.
+
+![Graph showing two advertisements for 212.69.32.0/19](images/hijack.png "What a BGP Hijack Might Look Like")
