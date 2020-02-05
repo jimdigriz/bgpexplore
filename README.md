@@ -228,7 +228,7 @@ This query can be expanded to return the prefix and origin AS relationships with
 
 To show the paths between `rrc06` (where our routing table dump come from) and the prefix we can use:
 
-    MATCH p=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(:AS)<-[:PEER*..5 { version: n.version }]-(:AS)<-[:PEER]-(:RRC { id: '06' })
+    MATCH p=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(:AS)<-[:PEER*..5 { version: n.version }]-(:RRC { id: '06' })
     RETURN p
     LIMIT 20;
 
