@@ -267,10 +267,6 @@ Looks like the [USA Army Network Enterprise Technology Command (AS320)](https://
 
 On this point, hop length is not a good judge of latency, for example London to New York can be a single hop and be 70ms whilst two datacenters in the same city could have several hops separating them.
 
-### Considering All AS Nodes
-
-[WiP...](https://neo4j.com/developer/kb/all-shortest-paths-between-set-of-nodes/)
-
 ## MOAS Conflicts
 
 [`RFC1930`](https://tools.ietf.org/html/rfc1930#section-7) states that generally a prefix will belong to a single AS though there are exceptions for both technical and accidental reasons.  When multiple ASs advertise the same prefix, this is known as [BGP Multiple Origin AS (MOAS) conflict](https://s3.amazonaws.com/www.xiaoliang.net/papers/zhao-imw01.pdf).
