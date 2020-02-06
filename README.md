@@ -209,6 +209,8 @@ Now in the top query box copy and paste the all the following multiple Cypher st
 
 Here are some example queries you can try to explore the data with by typing these into the query box.
 
+**N.B.** it is normal the screenshots below may show different results to what you get as the dataset I was processing will be different to the one you are and the global Internet topology is actively evolving
+
 ## AS Advertising 212.69.32.0/19
 
     MATCH (:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(a:AS)
