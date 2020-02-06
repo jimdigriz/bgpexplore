@@ -2,7 +2,7 @@ This project aims to expose the readers to [BGP](https://en.wikipedia.org/wiki/B
 
 Assumed is that you have passing knowledge but not hands-on experience of the terminology used and the problem space occupied by routing, [BGP](https://blog.cdemi.io/beginners-guide-to-understanding-bgp/) and [graph databases](https://neo4j.com/developer/graph-database/).
 
-This project is not about using the 'best' software, whatever that means, this is a learning aid.  It uses shell scripts instead of code and choses [Neo4j](https://neo4j.com/) under [Docker](https://docker.com) to lower the barrier for entry.
+This project is not about using the 'best' software, whatever that means, this is a learning aid.  It uses shell scripts (not parallelised deliberately!) instead of code and chooses [Neo4j](https://neo4j.com/) under [Docker](https://docker.com) to lower the barrier for entry.
 
 [Cypher (graph databases)](http://www.opencypher.org/) is a better fit to explore BGP data than SQL but I was unable to find much published work where this had actively been done.  As I wanted an excuse to use a graph database I decided to fill in the gap myself.
 
@@ -46,7 +46,7 @@ Optionally you may want to run:
 
 As with any database, upfront thought must be put into what [schema](https://en.wikipedia.org/wiki/Database_schema) to use, this cannot be done without first understanding the basics of the construction of our datasets.
 
-[BGP works by assigning an Autonomous Systems ('AS') Number ('ASN')](https://tools.ietf.org/html/rfc4271) to every entity on the Internet through which they advertise either IP address space ('prefix') they terminate (eg. Amazon are assigned AS16509 and host systems in the IP range 34.240.0.0/13) and/or act as transit that advertising connectivity between ASs (eg. Hurricane Electric provide transit between Choopa on AS20473 and Infinity Developments Limited on AS12496).
+[BGP works by assigning an Autonomous Systems ('AS') Number ('ASN')](https://tools.ietf.org/html/rfc4271) to every entity on the Internet through which they advertise either IP address space ('prefix') they terminate (eg. [Amazon are assigned AS16509](https://bgp.he.net/AS16509) and host systems in the IP range 34.240.0.0/13) and/or act as transit that advertising connectivity between ASs (eg. Hurricane Electric provide transit between [Choopa on AS20473](https://bgp.he.net/AS20473) and [Infinity Developments Limited on AS12496](https://bgp.he.net/AS12496)).
 
 So version one of our graph schema may look like:
 
@@ -248,7 +248,7 @@ Of interest is the shortest path, which due to our schema choice is the only 'me
 
 **N.B.** [`allShortestPaths()`](https://neo4j.com/docs/graph-algorithms/current/labs-algorithms/all-pairs-shortest-path/) does not accept constraints so we have to use the [`all()` predicate](https://neo4j.com/docs/cypher-manual/current/functions/predicate/#functions-all)
 
-![Screenshot of our inferrer routing table of rrc06](images/route.png "Route to 212.69.32.0/19 from rrc06")
+![Screenshot of our inferred routing table of rrc06](images/route.png "Route to 212.69.32.0/19 from rrc06")
 
 ## Longest `AS_PATH` for `rrc06`
 
@@ -276,9 +276,9 @@ On this point, hop length is not a good judge of latency, for example London to 
 
 ## Leaking 'Bogon' AS
 
-You may be familar with the concept of [bogon IP addresses](https://www.team-cymru.com/bogon-reference.html) on the Internet and by [extension there are a number of ASN's that should not be seen in an `AS_PATH`](https://labs.ripe.net/Members/martin_winter/monitoring-bgp-anomalies-on-the-internet) and a good starting point to build one is by looking at the [IANA allocations](https://www.iana.org/assignments/as-numbers/as-numbers.xhtml).
+You may be familiar with the concept of [bogon IP addresses](https://www.team-cymru.com/bogon-reference.html) on the Internet and by [extension there are a number of ASNs that should not be seen in an `AS_PATH`](https://labs.ripe.net/Members/martin_winter/monitoring-bgp-anomalies-on-the-internet) and a good starting point to build one is by looking at the [IANA allocations](https://www.iana.org/assignments/as-numbers/as-numbers.xhtml).
 
-For our example, we will just look for reservations including the [documentation](https://www.iana.org/go/rfc5398) and [private](https://www.iana.org/go/rfc6996) use only ranges.   We build a query looking for bogon ASs that have peering relationships seen publically:
+For our example, we will just look for reservations including the [documentation](https://www.iana.org/go/rfc5398) and [private](https://www.iana.org/go/rfc6996) use only ranges.   We build a query looking for bogon ASs that have peering relationships seen publicly:
 
     MATCH (a:AS)<-[:PEER]-(:AS)
     WITH DISTINCT a AS a
