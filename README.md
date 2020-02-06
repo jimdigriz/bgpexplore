@@ -2,7 +2,9 @@ This project aims to expose the readers to [BGP](https://en.wikipedia.org/wiki/B
 
 Assumed is that you have passing knowledge but not hands-on experience of the terminology used and the problem space occupied by routing, [BGP](https://blog.cdemi.io/beginners-guide-to-understanding-bgp/) and [graph databases](https://neo4j.com/developer/graph-database/).
 
-Care has been taken to use shell scripts over code where possible to increase accessibility of this project to others as well as the choice of using [Neo4j](https://neo4j.com/) under [Docker](https://docker.com).
+This project is not about using the 'best' software, whatever that means, this is a learning aid.  It uses shell scripts instead of code and choses [Neo4j](https://neo4j.com/) under [Docker](https://docker.com) to lower the barrier for entry.
+
+[Cypher (graph databases)](http://www.opencypher.org/) is a better fit to explore BGP data than SQL but I was unable to find much published work where this had actively been done.  As I wanted an excuse to use a graph database I decided to fill in the gap myself.
 
 ## Related Links
 
@@ -42,9 +44,9 @@ Optionally you may want to run:
 
 # Overview
 
-As with any database, upfront thought must be put into what [schema](https://en.wikipedia.org/wiki/Database_schema) to use, this cannot be done without first understanding a bit about the construction of our datasets.
+As with any database, upfront thought must be put into what [schema](https://en.wikipedia.org/wiki/Database_schema) to use, this cannot be done without first understanding the basics of the construction of our datasets.
 
-[BGP](https://tools.ietf.org/html/rfc4271) works by assigning an Autonomous Systems ('AS') Number to every entity on the Internet through which they advertise either IP address space ('prefix') they terminate (eg. Amazon are assigned AS16509 and host systems in the IP range 34.240.0.0/13) and/or act as transit that advertising connectivity between ASs (eg. Hurricane Electric provide transit between Choopa on AS20473 and Infinity Developments Limited on AS12496).
+[BGP works by assigning an Autonomous Systems ('AS') Number ('ASN')](https://tools.ietf.org/html/rfc4271) to every entity on the Internet through which they advertise either IP address space ('prefix') they terminate (eg. Amazon are assigned AS16509 and host systems in the IP range 34.240.0.0/13) and/or act as transit that advertising connectivity between ASs (eg. Hurricane Electric provide transit between Choopa on AS20473 and Infinity Developments Limited on AS12496).
 
 So version one of our graph schema may look like:
 
@@ -57,6 +59,8 @@ So version one of our graph schema may look like:
 An AS node is unique and referenced by its ASN and it has zero ('transit') or more prefixes (IP ranges) associated with it.  The AS additionally has one or more peers that are other AS nodes.
 
 To build this graph we need to get a snapshot of a Internet router's database, this comes in the form of MRT snapshots.  In these snapshots are [BGP `AS_PATH` attributes](https://tools.ietf.org/html/rfc4271#section-5.1.2) (a list of `AS_SEQUENCE` and `AS_SET` sub-attributes) that describe the path from our router to the destination prefix.
+
+We use the `AS_PATH` attribute to infer the topology of the Internet passively.
 
 ## Fetch
 
@@ -252,11 +256,11 @@ Cypher (and Neo4j) is optimised for finding the shortest paths in a graph but th
 
 Fortunately what we can ask is what is the farthest away prefix by iterating over all ASs advertising prefixes, getting the shortest distance to each, sorting by path length in descending order and returning the first ten at the top:
 
-    MATCH (n:AS)<-[:ADVERTISEMENT]-(:Prefix)
-    WITH DISTINCT n as n
+    MATCH (a:AS)<-[:ADVERTISEMENT]-(:Prefix)
+    WITH DISTINCT a AS a
     MATCH (r:RRC { id: '06' })
-    MATCH p=shortestPath((n)<-[:PEER*]-(r))
-    MATCH q=(n)<-[:ADVERTISEMENT]-(:Prefix)
+    MATCH p=shortestPath((a)<-[:PEER*]-(r))
+    MATCH q=(a)<-[:ADVERTISEMENT]-(:Prefix)
     WITH p, collect(q) AS q
     ORDER BY length(p) DESC
     LIMIT 10
@@ -269,6 +273,17 @@ Fortunately what we can ask is what is the farthest away prefix by iterating ove
 Looks like the [USA Army Network Enterprise Technology Command (AS320)](https://en.wikipedia.org/wiki/USAISC) is a poor choice of a location to host a gaming server for Japan ([`rrc06`'s location](https://www.ripe.net/analyse/internet-measurements/routing-information-service-ris/ris-raw-data)) with a hop length of nine, though there may be other non-technical reasons why you would not!
 
 On this point, hop length is not a good judge of latency, for example London to New York can be a single hop and be 70ms whilst two datacenters in the same city could have several hops separating them.
+
+## Leaking 'Bogon' AS
+
+You may be familar with the concept of [bogon IP addresses](https://www.team-cymru.com/bogon-reference.html) on the Internet and by [extension there are a number of ASN's that should not be seen in an `AS_PATH`](https://labs.ripe.net/Members/martin_winter/monitoring-bgp-anomalies-on-the-internet) and a good starting point to build one is by looking at the [IANA allocations](https://www.iana.org/assignments/as-numbers/as-numbers.xhtml).
+
+For our example, we will just look for reservations including the [documentation](https://www.iana.org/go/rfc5398) and [private](https://www.iana.org/go/rfc6996) use only ranges.   We build a query looking for bogon ASs that have peering relationships seen publically:
+
+    MATCH (a:AS)<-[:PEER]-(:AS)
+    WITH DISTINCT a AS a
+    WHERE a.num = 0 OR (a.num >= 64496 AND a.num <= 131071) OR (a.num >= 4200000000 AND a.num <= 4294967295)
+    RETURN a;
 
 ## MOAS Conflicts
 
