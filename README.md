@@ -1,4 +1,4 @@
-This project aims to expose the readers to [BGP](https://en.wikipedia.org/wiki/Border_Gateway_Protocol) and [graph databases](https://en.wikipedia.org/wiki/Graph_database) by walking you through downloading, importing and exploring [MRT exports](https://tools.ietf.org/html/rfc6396) from Remote Route Collectors (RRC).
+This project aims to expose readers to [BGP](https://en.wikipedia.org/wiki/Border_Gateway_Protocol) and the use of a [graph database](https://en.wikipedia.org/wiki/Graph_database) by going through the steps of downloading, importing and exploring [MRT exports](https://tools.ietf.org/html/rfc6396) from Remote Route Collectors (RRC).
 
 Assumed is that you have passing knowledge but not hands-on experience of the terminology used and the problem space occupied by routing, [BGP](https://blog.cdemi.io/beginners-guide-to-understanding-bgp/) and [graph databases](https://neo4j.com/developer/graph-database/).
 
