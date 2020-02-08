@@ -4,7 +4,7 @@ Assumed is that you have passing knowledge but not hands-on experience of the te
 
 This project is not about using the 'best' software, whatever that means, this is a learning aid.  It uses shell scripts (not parallelised deliberately!) instead of code and chooses [Neo4j](https://neo4j.com/) under [Docker](https://docker.com) to lower the barrier for entry.
 
-[Cypher (graph databases)](http://www.opencypher.org/) is a better fit to explore BGP data than SQL but I was unable to find much published work where this had actively been done.  As I wanted an excuse to use a graph database I decided to fill in the gap myself.
+[Cypher (graph databases)](http://www.opencypher.org/) is a better fit to explore BGP data than SQL but I was unable to find much published work where this had actively been used or explored in detail.  As I wanted an excuse to use a graph database I decided to fill in the gap myself.
 
 ## Related Links
 
