@@ -232,7 +232,7 @@ To show the paths between `rrc06` (where our routing table dump come from) and t
 
     MATCH p=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(:AS)<-[:PEER*..5 { version: n.version }]-(:RRC { id: '06' })
     RETURN p
-    LIMIT 10
+    LIMIT 10;
 
 **N.B.** we limit the `PEER` relationship length to 5 (more than 80% `AS_PATH`'s are equal or shorter than this) to avoid it getting out of control and we only ask for the first 10 results to stop the UI slowing to a crawl or looking too crowded; for your own CIDR prefix you may need to bump the `PEER` hop limit to 10
 
