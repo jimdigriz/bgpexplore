@@ -21,14 +21,16 @@ This project is not about using the 'best' software, whatever that means, this i
 
  * [Docker](https://docs.docker.com/install/) (sorry!)
  * [Erlang](https://www.erlang.org/downloads)
-    * The project includes an Erlang implementation of [`mrt2bgpdump`](https://github.com/t2mune/mrtparse) as it was found to be extremely slow; there is no need to understand or read it
-      * though [BGPStream](https://bgpstream.caida.org/) was an option it would have made preflight significantly harder
-    * Quick install:
-      * **Debian 10/Ubuntu 18.04 bionic:** `apt-get install --no-install-recommends erlang-base`
-      * **CentOS 8:** `yum install -y epel-release && yum install erlang`
+     * The project includes an Erlang implementation of [`mrt2bgpdump`](https://github.com/t2mune/mrtparse) as it was found to be extremely slow; there is no need to understand or read it
+        * though [BGPStream](https://bgpstream.caida.org/) was an option it would have made preflight significantly harder
+     * Quick install:
+        * **Debian 10/Ubuntu 18.04 bionic:** `apt-get install --no-install-recommends erlang-base`
+        * **CentOS 8:** `yum install -y epel-release && yum install erlang`
  * [optional] off-piste exploration of the MRT exports requires [`mrtparse`](https://github.com/t2mune/mrtparse) to be install
-    * **Debian 10/Ubuntu 18.04 bionic:** `apt-get install --no-install-recommends mrtparse
-    * `mrt-print-all` is in-particularly useful in combination with the comments in `mrt2bgpdump.escript` pointing to the relevant sections of the RFCs in understanding what the decoded attributes mean
+     * `mrt-print-all` is in-particularly useful in combination with the comments in `mrt2bgpdump.escript` pointing to the relevant sections of the RFCs in understanding what the decoded attributes mean
+     * Quick install:
+        * **Debian 10/Ubuntu 18.04 bionic:** `apt-get install --no-install-recommends mrtparse`
+        * **CentOS 8/macOS:** `pip3 install mrtparse`
 
 You will also need 10GiB of disk space for the raw/processed data files and about 8GiB of free RAM.
 
@@ -38,17 +40,15 @@ You will need to have [`brew` installed](https://brew.sh/) and then you run:
 
     brew install erlang gawk
 
-Optionally you may want to run:
-
-    pip3 install mrtparse
-
 # Overview
 
-As with any database, upfront thought must be put into what [schema](https://en.wikipedia.org/wiki/Database_schema) to use, this cannot be done without first understanding the basics of the construction of our datasets.
+Beforing starting work with any database, it is wise to put upfront thought into what [schema](https://en.wikipedia.org/wiki/Database_schema) to use which requires some basic understanding of the data and the environment it represents that we will be using.
 
 [BGP works by assigning an Autonomous Systems ('AS') Number ('ASN')](https://tools.ietf.org/html/rfc4271) to every entity on the Internet through which they advertise either IP address space ('prefix') they terminate (eg. [Amazon are assigned AS16509](https://bgp.he.net/AS16509) and host systems in the IP range 34.240.0.0/13) and/or act as transit that advertising connectivity between ASs (eg. Hurricane Electric provide transit between [Choopa on AS20473](https://bgp.he.net/AS20473) and [Infinity Developments Limited on AS12496](https://bgp.he.net/AS12496)).
 
-So version one of our graph schema may look like:
+To build this graph we need to get a snapshot of an Internet router's database, this comes in the form of MRT snapshots.  In these snapshots are [BGP `AS_PATH` attributes](https://tools.ietf.org/html/rfc4271#section-5.1.2) (a list of `AS_SEQUENCE` and `AS_SET` sub-attributes) that describe the path from our router to the destination prefix.
+
+We use the `AS_PATH` attribute to infer the topology of the Internet passively and so a suitable initial schema to work with may look like:
 
     [Prefix 1] --+-> [AS] <---- [AS peer A] <--- [AS x] <----------- [Our View from the RRC]
                  |     ^             ^                                        |
@@ -57,10 +57,6 @@ So version one of our graph schema may look like:
     [Prefix 3] --/
 
 An AS node is unique and referenced by its ASN and it has zero ('transit') or more prefixes (IP ranges) associated with it.  The AS additionally has one or more peers that are other AS nodes.
-
-To build this graph we need to get a snapshot of a Internet router's database, this comes in the form of MRT snapshots.  In these snapshots are [BGP `AS_PATH` attributes](https://tools.ietf.org/html/rfc4271#section-5.1.2) (a list of `AS_SEQUENCE` and `AS_SET` sub-attributes) that describe the path from our router to the destination prefix.
-
-We use the `AS_PATH` attribute to infer the topology of the Internet passively.
 
 ## Fetch
 
@@ -86,7 +82,7 @@ To decorate the AS nodes, we build a list of mappings of ASNs to their registere
         | env LC_ALL=C sed -e 's/^\(23456\) \(.*\)$/\1\t-Reserved AS-\t\2\tZZ/; s/\( -Reserved AS-\), ZZ,/\1,/; s/^\([0-9]*\) \(.*\) - \(.*\), \([A-Z][A-Z]\)$/\1\t\2\t\3\t\4/; s/^\([0-9]*\) \(.*\), \([A-Z][A-Z]\)$/\1\t\2\t\2\t\3/;' \
         | gzip -c > asn.tsv.gz
 
-**N.B.** the `sed` is used to fix up the original source file to make it consistent and machine readable
+**N.B.** `sed` is used to fix up the original source file to make it consistent and machine readable
 
 As the MRT exports are in a binary format we need to convert them to a parsable ASCII format (choosing 'bgpdump format' as it is popular).
 
@@ -116,7 +112,7 @@ Create a list of prefixes to paths:
     #  trailing AS_SETs are stripped out and we treat the prefix as being connected to end of the AS_PATH
     #  for the few remaining AS_SETs that exist in the middle of the data we ignore the entire advertisement
     # perl to remove AS_PATH prepending
-    #  this is not perfect, but we remove the stray loops in the import phase
+    #  this is not perfect, but we DELETE the stray loops during the import phase later
     # grep removes the default route prefixes we are not interested in
     find ris-data -type f -name '*.bgpdump.psv.gz' \
         | xargs gzip -dc \
@@ -236,11 +232,11 @@ To show the paths between `rrc06` (where our routing table dump come from) and t
 
     MATCH p=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(:AS)<-[:PEER*..5 { version: n.version }]-(:RRC { id: '06' })
     RETURN p
-    LIMIT 20;
+    LIMIT 10
 
-**N.B.** we limit the `PEER` relationship length to 5 to avoid it getting out of control, and we only want the first 20 results to stop the UI slowing to a crawl.
+**N.B.** we limit the `PEER` relationship length to 5 (more than 80% `AS_PATH`'s are equal or shorter than this) to avoid it getting out of control and we only ask for the first 10 results to stop the UI slowing to a crawl or looking too crowded; for your own CIDR prefix you may need to bump the `PEER` hop limit to 10
 
-Of interest is the shortest path, which due to our schema choice is the only 'metric' now available for routing decisions, to describe how traffic moves from `rrc06` to our prefix:
+Of interest to us is the shortest path, which due to our schema choice is the only 'metric' we can use [BGP Best Path Selection](https://www.theroutingtable.com/bgp-best-path-selection/) routing decisions, which describes how traffic moves from `rrc06` to our prefix:
 
     MATCH i=(n:Prefix { cidr: "212.69.32.0/19" })-[:ADVERTISEMENT]->(o:AS)
     MATCH (r:RRC { id: '06' })
